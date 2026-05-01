@@ -1,0 +1,89 @@
+{
+  "name": "url-viewer",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "yarn@4.13.0",
+  "main": "dist-electron/main/index.cjs",
+  "scripts": {
+    "dev": "set ELECTRON_RUN_AS_NODE=&& vite",
+    "build": "tsc --noEmit && vite build",
+    "dist": "yarn build && electron-builder",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "preview": "vite preview",
+    "dev:web": "cross-env VITE_WEB_ONLY=1 vite"
+  },
+  "dependencies": {
+    "@m3u8viewer/plugin-sdk": "git+https://github.com/URLViewer/UrlViewer-SDK.git",
+    "adm-zip": "^0.5.17",
+    "electron": "^41.3.0",
+    "electron-store": "^11.0.2",
+    "hls.js": "^1.6.16",
+    "isomorphic-git": "^1.37.6",
+    "keytar": "^7.9.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-icons": "^5.6.0",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.59.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/aria-query": "^5.0.4",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.5",
+    "autoprefixer": "^10.5.0",
+    "cross-env": "^10.1.0",
+    "electron-builder": "^26.8.1",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "jsdom": "^29.1.0",
+    "postcss": "^8.5.12",
+    "prettier": "^3.8.3",
+    "rollup": "^4.60.2",
+    "tailwindcss": "^3.4.17",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.59.1",
+    "vite": "^8.0.10",
+    "vite-plugin-electron": "^0.29.1",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^4.1.5"
+  },
+  "build": {
+    "appId": "local.url.viewer",
+    "productName": "UrlViewer",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

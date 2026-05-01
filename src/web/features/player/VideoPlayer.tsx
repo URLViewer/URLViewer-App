@@ -1,0 +1,764 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "@web/components/Icon";
+import { resolvePlaybackPlugin } from "@web/plugins/registry";
+import type { PlaybackFailure } from "@web/plugins/types";
+import { useAppStore } from "@web/store/appStore";
+
+type PlaybackErrorState = {
+  videoId: string;
+  message: string;
+};
+
+const RESUME_SAVE_INTERVAL_MS = 2000;
+const CONTROL_HIDE_DELAY_MS = 1800;
+const FLOATING_CLOSE_MS = 140;
+const GROUP_NAME_MIN = 1;
+const GROUP_NAME_MAX = 10;
+
+function messageForPlaybackFailure(failure: PlaybackFailure): string {
+  if (failure.kind === "access-error") {
+    return "アクセスエラー: コンテンツを取得できませんでした。";
+  }
+  if (failure.kind === "not-playable") {
+    return "再生不可: フォーマット非対応、または動画コンテンツではありません。";
+  }
+  return "不明なエラー: 再生に失敗しました。";
+}
+
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return "0:00";
+  }
+
+  const total = Math.floor(seconds);
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+export function VideoPlayer() {
+  const tabs = useAppStore((state) => state.library.tabs);
+  const videos = useAppStore((state) => state.library.videos);
+  const saveResume = useAppStore((state) => state.saveResume);
+  const markPlaybackFailed = useAppStore((state) => state.markPlaybackFailed);
+  const setPlaybackState = useAppStore((state) => state.setPlaybackState);
+  const playbackCommand = useAppStore((state) => state.playbackCommand);
+  const plugins = useAppStore((state) => state.plugins);
+  const groups = useAppStore((state) => state.library.groups);
+  const addGroupWithVideo = useAppStore((state) => state.addGroupWithVideo);
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastResumeSaveAtRef = useRef(0);
+  const resumeAtLoadRef = useRef(0);
+  const isSeekingRef = useRef(false);
+  const seekRafRef = useRef<number | null>(null);
+  const pendingSeekRef = useRef<number | null>(null);
+  const wasPlayingBeforeSeekRef = useRef(false);
+  const lastHandledCommandSeqRef = useRef(0);
+  const groupMenuRef = useRef<HTMLDivElement | null>(null);
+  const groupCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [error, setError] = useState<PlaybackErrorState | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekValue, setSeekValue] = useState(0);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [isHovering, setIsHovering] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [groupInput, setGroupInput] = useState("");
+  const [groupMenuVisible, setGroupMenuVisible] = useState(false);
+  const [groupMenuClosing, setGroupMenuClosing] = useState(false);
+
+  const activeVideo = useMemo(
+    () => videos.find((video) => video.id === tabs.activeVideoId),
+    [tabs.activeVideoId, videos],
+  );
+
+  const activeVideoId = activeVideo?.id ?? null;
+  const sourceUrl = activeVideo?.sourceUrl ?? null;
+  const visibleError = activeVideoId && error?.videoId === activeVideoId ? error.message : "";
+  const inputNormalized = groupInput.trim().replace(/\s+/g, " ");
+  const inputLower = inputNormalized.toLowerCase();
+  const displayedGroups = useMemo(() => {
+    const mapped = groups.map((group) => ({
+      ...group,
+      matched: inputLower.length > 0 && group.name.toLowerCase().includes(inputLower),
+    }));
+
+    return mapped.sort((a, b) => Number(b.matched) - Number(a.matched) || a.name.localeCompare(b.name));
+  }, [groups, inputLower]);
+  const hasExactGroup = useMemo(
+    () => groups.some((group) => group.name.trim().toLowerCase() === inputLower && inputLower.length > 0),
+    [groups, inputLower],
+  );
+  const canCreateGroupFromInput =
+    inputNormalized.length >= GROUP_NAME_MIN && inputNormalized.length <= GROUP_NAME_MAX && !hasExactGroup;
+  const isActiveVideoGrouped = useMemo(
+    () => Boolean(activeVideoId && groups.some((group) => group.videoIds.includes(activeVideoId))),
+    [activeVideoId, groups],
+  );
+
+  const clearHideTimer = useCallback(() => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleAutoHide = useCallback(() => {
+    clearHideTimer();
+
+    if (!isPlaying || isHovering) {
+      return;
+    }
+
+    hideTimerRef.current = setTimeout(() => {
+      setControlsVisible(false);
+    }, CONTROL_HIDE_DELAY_MS);
+  }, [clearHideTimer, isHovering, isPlaying]);
+
+  const showControls = useCallback(() => {
+    setControlsVisible(true);
+    scheduleAutoHide();
+  }, [scheduleAutoHide]);
+
+  const togglePlay = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    if (video.paused) {
+      void video.play();
+    } else {
+      video.pause();
+    }
+  }, []);
+
+  const skipBy = useCallback((seconds: number) => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    const next = Math.max(0, Math.min(video.duration || Infinity, video.currentTime + seconds));
+    video.currentTime = next;
+    setCurrentTime(next);
+  }, []);
+
+  const setRate = useCallback((rate: number) => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.playbackRate = rate;
+    setPlaybackRate(rate);
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.muted = !video.muted;
+    setIsMuted(video.muted);
+  }, []);
+
+  const setVolumeValue = useCallback((next: number) => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    const normalized = Math.max(0, Math.min(1, next));
+    video.volume = normalized;
+    if (normalized > 0 && video.muted) {
+      video.muted = false;
+    }
+
+    setVolume(normalized);
+    setIsMuted(video.muted);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    if (!document.fullscreenElement) {
+      await container.requestFullscreen();
+      return;
+    }
+
+    if (document.fullscreenElement === container) {
+      await document.exitFullscreen();
+    }
+  }, []);
+
+  const applyPendingSeek = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    const next = pendingSeekRef.current;
+    if (next === null) {
+      return;
+    }
+
+    pendingSeekRef.current = null;
+    if (typeof video.fastSeek === "function") {
+      video.fastSeek(next);
+    } else {
+      video.currentTime = next;
+    }
+  }, []);
+
+  const scheduleSeek = useCallback(() => {
+    if (seekRafRef.current !== null) {
+      return;
+    }
+
+    seekRafRef.current = window.requestAnimationFrame(() => {
+      seekRafRef.current = null;
+      applyPendingSeek();
+    });
+  }, [applyPendingSeek]);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!groupMenuRef.current) {
+        return;
+      }
+
+      if (!groupMenuRef.current.contains(event.target as Node)) {
+        setGroupMenuClosing(true);
+        groupCloseTimerRef.current = setTimeout(() => {
+          setGroupMenuClosing(false);
+          setGroupMenuVisible(false);
+          groupCloseTimerRef.current = null;
+        }, FLOATING_CLOSE_MS);
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+      showControls();
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    };
+  }, [showControls]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      switch (event.code) {
+        case "Space":
+        case "KeyK":
+          event.preventDefault();
+          togglePlay();
+          showControls();
+          break;
+        case "ArrowLeft":
+          event.preventDefault();
+          skipBy(-5);
+          showControls();
+          break;
+        case "ArrowRight":
+          event.preventDefault();
+          skipBy(5);
+          showControls();
+          break;
+        case "KeyJ":
+          event.preventDefault();
+          skipBy(-10);
+          showControls();
+          break;
+        case "KeyL":
+          event.preventDefault();
+          skipBy(10);
+          showControls();
+          break;
+        case "KeyM":
+          event.preventDefault();
+          toggleMute();
+          showControls();
+          break;
+        case "KeyF":
+          event.preventDefault();
+          void toggleFullscreen();
+          showControls();
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showControls, skipBy, toggleFullscreen, toggleMute, togglePlay]);
+
+  useEffect(() => {
+    isSeekingRef.current = isSeeking;
+  }, [isSeeking]);
+
+  useEffect(() => {
+    resumeAtLoadRef.current = activeVideo?.resumeSeconds ?? 0;
+  }, [activeVideoId, activeVideo?.resumeSeconds]);
+
+  useEffect(() => {
+    if (!playbackCommand) {
+      return;
+    }
+
+    if (playbackCommand.seq === lastHandledCommandSeqRef.current) {
+      return;
+    }
+
+    if (playbackCommand.videoId !== activeVideoId) {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    lastHandledCommandSeqRef.current = playbackCommand.seq;
+
+    if (playbackCommand.action === "toggle") {
+      if (video.paused) {
+        void video.play();
+      } else {
+        video.pause();
+      }
+      return;
+    }
+
+    if (playbackCommand.action === "play") {
+      void video.play();
+      return;
+    }
+
+    video.pause();
+  }, [activeVideoId, playbackCommand]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    const videoIdSnapshot = activeVideoId;
+    const resumeAtStart = resumeAtLoadRef.current;
+
+    if (!videoIdSnapshot || !sourceUrl) {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      setPlaybackState({ videoId: null, status: "idle" });
+      return;
+    }
+
+    lastResumeSaveAtRef.current = 0;
+
+    const onLoadedMetadata = () => {
+      if (resumeAtStart > 1 && resumeAtStart < (video.duration || Infinity)) {
+        video.currentTime = resumeAtStart;
+      }
+
+      setDuration(video.duration || 0);
+      setCurrentTime(video.currentTime || 0);
+      setPlaybackRate(video.playbackRate);
+      setVolume(video.volume);
+      setIsMuted(video.muted);
+    };
+
+    const onDurationChange = () => {
+      setDuration(video.duration || 0);
+    };
+
+    const onTimeUpdate = () => {
+      if (!isSeekingRef.current) {
+        setCurrentTime(video.currentTime || 0);
+      }
+
+      const now = Date.now();
+      if (now - lastResumeSaveAtRef.current < RESUME_SAVE_INTERVAL_MS) {
+        return;
+      }
+
+      lastResumeSaveAtRef.current = now;
+      void saveResume(videoIdSnapshot, video.currentTime);
+    };
+
+    const onPlay = () => {
+      setIsPlaying(true);
+      setPlaybackState({ videoId: videoIdSnapshot, status: "playing" });
+    };
+
+    const onPause = () => {
+      setIsPlaying(false);
+      setControlsVisible(true);
+      setPlaybackState({ videoId: videoIdSnapshot, status: "paused" });
+    };
+
+    const onVolumeChange = () => {
+      setVolume(video.volume);
+      setIsMuted(video.muted);
+    };
+
+    const onEnded = () => {
+      setIsPlaying(false);
+      setControlsVisible(true);
+      setPlaybackState({ videoId: videoIdSnapshot, status: "paused" });
+    };
+
+    const onFatalPlaybackError = (failure: PlaybackFailure) => {
+      setPlaybackState({ videoId: videoIdSnapshot, status: "paused" });
+      setError({
+        videoId: videoIdSnapshot,
+        message: messageForPlaybackFailure(failure),
+      });
+      void markPlaybackFailed(videoIdSnapshot, failure.kind);
+    };
+
+    video.addEventListener("loadedmetadata", onLoadedMetadata);
+    video.addEventListener("durationchange", onDurationChange);
+    video.addEventListener("timeupdate", onTimeUpdate);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("volumechange", onVolumeChange);
+    video.addEventListener("ended", onEnded);
+    const playbackPlugin = resolvePlaybackPlugin(sourceUrl, plugins);
+    if (!playbackPlugin) {
+      onFatalPlaybackError({ kind: "not-playable" });
+      return () => undefined;
+    }
+    const unmountPlayback = playbackPlugin.mount({
+      video,
+      sourceUrl,
+      onFatalError: onFatalPlaybackError,
+    });
+
+    return () => {
+      void saveResume(videoIdSnapshot, video.currentTime);
+
+      video.removeEventListener("loadedmetadata", onLoadedMetadata);
+      video.removeEventListener("durationchange", onDurationChange);
+      video.removeEventListener("timeupdate", onTimeUpdate);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("volumechange", onVolumeChange);
+      video.removeEventListener("ended", onEnded);
+
+      if (typeof unmountPlayback === "function") {
+        unmountPlayback();
+      }
+
+      setPlaybackState({ videoId: null, status: "idle" });
+    };
+  }, [
+    activeVideoId,
+    markPlaybackFailed,
+    plugins,
+    saveResume,
+    setPlaybackState,
+    sourceUrl,
+  ]);
+
+  useEffect(() => {
+    scheduleAutoHide();
+  }, [isHovering, isPlaying, scheduleAutoHide]);
+
+  useEffect(() => {
+    return () => {
+      clearHideTimer();
+      if (groupCloseTimerRef.current) {
+        clearTimeout(groupCloseTimerRef.current);
+      }
+      if (seekRafRef.current !== null) {
+        cancelAnimationFrame(seekRafRef.current);
+      }
+    };
+  }, [clearHideTimer]);
+
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  const closeGroupMenu = useCallback(() => {
+    setGroupMenuClosing(true);
+    groupCloseTimerRef.current = setTimeout(() => {
+      setGroupMenuClosing(false);
+      setGroupMenuVisible(false);
+      groupCloseTimerRef.current = null;
+    }, FLOATING_CLOSE_MS);
+  }, []);
+
+  const openGroupMenu = useCallback(() => {
+    if (groupCloseTimerRef.current) {
+      clearTimeout(groupCloseTimerRef.current);
+      groupCloseTimerRef.current = null;
+    }
+    setGroupMenuClosing(false);
+    setGroupMenuVisible(true);
+  }, []);
+
+  const handleCreateGroupFromInput = useCallback(async () => {
+    if (!activeVideoId) {
+      return;
+    }
+
+    if (!canCreateGroupFromInput) {
+      return;
+    }
+    await addGroupWithVideo(inputNormalized, activeVideoId);
+    setGroupInput("");
+  }, [activeVideoId, addGroupWithVideo, canCreateGroupFromInput, inputNormalized]);
+
+  return (
+    <section
+      ref={containerRef}
+      className="viewer-shell"
+      tabIndex={0}
+      onMouseMove={showControls}
+      onMouseEnter={() => {
+        setIsHovering(true);
+        showControls();
+      }}
+      onMouseLeave={() => {
+        setIsHovering(false);
+      }}
+    >
+      <div className="viewer-stage" onDoubleClick={() => void toggleFullscreen()}>
+        <video ref={videoRef} className="viewer-video" onClick={togglePlay} />
+        <div className="viewer-infobar-top">
+          <span className="viewer-info-title-light" title={activeVideo?.label ?? ""}>
+            {activeVideo?.label ?? "動画なし"}
+          </span>
+          <div className="relative">
+            <button
+              className={`icon-btn-sm ${isActiveVideoGrouped ? "bookmark-btn-active" : ""}`}
+              title="グループに追加"
+              disabled={!activeVideoId}
+              onClick={() => {
+                if (!activeVideoId) {
+                  return;
+                }
+                if (groupMenuVisible) {
+                  closeGroupMenu();
+                } else {
+                  openGroupMenu();
+                }
+              }}
+            >
+              <Icon name={isActiveVideoGrouped ? "bookmark-solid" : "bookmark"} className="h-4 w-4" />
+            </button>
+
+            {groupMenuVisible && (
+              <div
+                ref={groupMenuRef}
+                className={`group-popover player-group-popover ${groupMenuClosing ? "floating-exit" : "floating-enter"}`}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span className="group-popover-title">グループへ追加</span>
+                <div className="group-simple-input-wrap">
+                  <input
+                    className="group-simple-input"
+                    placeholder="グループ名 (1〜10文字)"
+                    maxLength={GROUP_NAME_MAX}
+                    value={groupInput}
+                    onChange={(event) => setGroupInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleCreateGroupFromInput();
+                      } else if (event.key === "Escape") {
+                        closeGroupMenu();
+                      }
+                    }}
+                  />
+                </div>
+                <div className="group-simple-list">
+                  {displayedGroups.map((group) => {
+                    const linked = Boolean(activeVideoId && group.videoIds.includes(activeVideoId));
+                    return (
+                      <button
+                        key={group.id}
+                        className={`group-simple-item ${linked ? "group-simple-item-linked" : ""}`}
+                        onClick={() => activeVideoId && void addGroupWithVideo(group.name, activeVideoId)}
+                      >
+                        <span className="truncate">{group.name}</span>
+                        <span className="group-simple-item-meta">{linked ? "追加済み" : "追加"}</span>
+                      </button>
+                    );
+                  })}
+                  {displayedGroups.length === 0 && (
+                    <div className="group-simple-empty">グループなし</div>
+                  )}
+                  {canCreateGroupFromInput && (
+                    <button className="group-simple-item group-simple-item-create" onClick={() => void handleCreateGroupFromInput()}>
+                      <span className="truncate">「{inputNormalized}」を新規作成して追加</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {visibleError && (
+          <div className="absolute left-0 right-0 top-4 z-30 mx-auto w-fit rounded-full border border-slate-300 bg-white/95 px-3 py-1 text-xs text-slate-700 shadow-sm">
+            {visibleError}
+          </div>
+        )}
+
+        {!activeVideo && (
+          <div className="absolute inset-0 grid place-items-center text-sm text-white/85">動画を開いてください</div>
+        )}
+
+        <div className={`viewer-controls-overlay ${controlsVisible || !isPlaying ? "viewer-controls-visible" : ""}`}>
+          <div className="viewer-progress-wrap">
+            <div className="viewer-progress-fill" style={{ width: `${progressPercent}%` }} />
+            <input
+              className="viewer-progress"
+              type="range"
+              min={0}
+              max={duration || 0}
+              step={0.1}
+              value={isSeeking ? seekValue : currentTime}
+              onPointerDown={() => {
+                const video = videoRef.current;
+                if (!video) {
+                  return;
+                }
+
+                wasPlayingBeforeSeekRef.current = !video.paused;
+                if (!video.paused) {
+                  video.pause();
+                }
+                setIsSeeking(true);
+              }}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setSeekValue(next);
+                setCurrentTime(next);
+                pendingSeekRef.current = next;
+                scheduleSeek();
+              }}
+              onInput={(event) => {
+                const next = Number((event.target as HTMLInputElement).value);
+                setSeekValue(next);
+                setCurrentTime(next);
+                pendingSeekRef.current = next;
+                scheduleSeek();
+              }}
+              onBlur={() => {
+                const video = videoRef.current;
+                setIsSeeking(false);
+                applyPendingSeek();
+                if (video && wasPlayingBeforeSeekRef.current) {
+                  void video.play();
+                }
+                wasPlayingBeforeSeekRef.current = false;
+              }}
+              onPointerUp={() => {
+                const video = videoRef.current;
+                setIsSeeking(false);
+                applyPendingSeek();
+                if (video && wasPlayingBeforeSeekRef.current) {
+                  void video.play();
+                }
+                wasPlayingBeforeSeekRef.current = false;
+              }}
+            />
+          </div>
+
+          <div className="viewer-toolbar">
+            <div className="viewer-left-controls">
+              <button className="player-btn" title="再生/停止 (Space/K)" onClick={togglePlay}>
+                <Icon name={isPlaying ? "pause" : "play"} className="h-4 w-4" />
+              </button>
+              <button className="player-btn" title="-10秒 (J)" onClick={() => skipBy(-10)}>
+                <Icon name="back10" className="h-4 w-4" />
+              </button>
+              <button className="player-btn" title="-5秒 (←)" onClick={() => skipBy(-5)}>
+                <Icon name="back5" className="h-4 w-4" />
+              </button>
+              <button className="player-btn" title="+5秒 (→)" onClick={() => skipBy(5)}>
+                <Icon name="fwd5" className="h-4 w-4" />
+              </button>
+              <button className="player-btn" title="+10秒 (L)" onClick={() => skipBy(10)}>
+                <Icon name="fwd10" className="h-4 w-4" />
+              </button>
+              <span className="viewer-time">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </span>
+            </div>
+
+            <div className="viewer-right-controls">
+              <button className="player-btn" title="ミュート (M)" onClick={toggleMute}>
+                <Icon name={isMuted || volume === 0 ? "mute" : "volume"} className="h-4 w-4" />
+              </button>
+              <input
+                type="range"
+                className="viewer-volume"
+                min={0}
+                max={1}
+                step={0.01}
+                value={isMuted ? 0 : volume}
+                onChange={(event) => setVolumeValue(Number(event.target.value))}
+              />
+              <div className="viewer-speed-group">
+                {[1, 1.25, 1.5, 2].map((rate) => (
+                  <button
+                    key={rate}
+                    className={`speed-chip ${playbackRate === rate ? "speed-chip-active" : ""}`}
+                    onClick={() => setRate(rate)}
+                    title={`${rate}x`}
+                  >
+                    {rate}x
+                  </button>
+                ))}
+              </div>
+              <button className="player-btn" title="全画面 (F)" onClick={() => void toggleFullscreen()}>
+                <Icon name={isFullscreen ? "fullscreen-exit" : "fullscreen"} className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
