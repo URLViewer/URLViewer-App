@@ -29,8 +29,19 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
+      - name: Validate Release Token
+        shell: bash
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          if [ -z "$RELEASE_PAT" ]; then
+            echo "RELEASE_PAT secret is not set."
+            echo "Please create a fine-grained PAT and register it as repository secret RELEASE_PAT."
+            exit 1
+          fi
+
       - name: Build And Publish
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: yarn dist:publish
