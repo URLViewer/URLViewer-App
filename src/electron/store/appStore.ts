@@ -1,4 +1,4 @@
-import electron from "electron";
+import { app } from "electron";
 import path from "node:path";
 import process from "node:process";
 import Store from "electron-store";
@@ -29,7 +29,7 @@ const DATA_VERSION = 2;
 
 function resolveStoreCwd(): string {
   try {
-    const userDataPath = electron.app?.getPath?.("userData");
+    const userDataPath = app?.getPath?.("userData");
     if (userDataPath) {
       return userDataPath;
     }

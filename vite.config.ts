@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import electron from "vite-plugin-electron/simple";
 import { fileURLToPath } from "node:url";
@@ -64,4 +64,4 @@ export default defineConfig({
       include: ["src/shared/**/*.ts", "src/web/**/*.ts", "src/web/**/*.tsx"],
     },
   },
-});
+} as any);

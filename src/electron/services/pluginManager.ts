@@ -1,4 +1,4 @@
-import electron from "electron";
+import { app } from "electron";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { mkdtemp, readFile, rm, cp, mkdir } from "node:fs/promises";
@@ -89,7 +89,7 @@ export class PluginManager {
   private pluginsDir: string;
 
   constructor(private store: AppStoreService) {
-    this.pluginsDir = path.join(electron.app.getPath("userData"), "plugins");
+    this.pluginsDir = path.join(app.getPath("userData"), "plugins");
   }
 
   private getState(): PluginState {

@@ -859,6 +859,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@m3u8viewer/plugin-sdk@git+https://github.com/URLViewer/UrlViewer-SDK.git":
+  version: 0.1.0
+  resolution: "@m3u8viewer/plugin-sdk@https://github.com/URLViewer/UrlViewer-SDK.git#commit=529968c9a61211c5c6753896390a00ee6ab2daa3"
+  checksum: 10c0/f53d8db985b46e621205ec9e571ff08fabfca62a1375eb49764128ac1da2404a4a5aed35839d93fffb4ff660ef8464ed56ab3dbc0eea8dbc217aefb9938d8314
+  languageName: node
+  linkType: hard
+
 "@malept/cross-spawn-promise@npm:^2.0.0":
   version: 2.0.0
   resolution: "@malept/cross-spawn-promise@npm:2.0.0"
@@ -1476,6 +1483,13 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10c0/a58ba341cb9e7d74f71810a88862da7b2a6fa42e2a1fc0ce40498f6ea1d44382f0640117057da779f74c47039f7166bf48fad02dc876f94e005c7afa50f5e129
+  languageName: node
+  linkType: hard
+
+"@types/semver@npm:^7.7.1":
+  version: 7.7.1
+  resolution: "@types/semver@npm:7.7.1"
+  checksum: 10c0/c938aef3bf79a73f0f3f6037c16e2e759ff40c54122ddf0b2583703393d8d3127130823facb880e694caa324eb6845628186aac1997ee8b31dc2d18fafe26268
   languageName: node
   linkType: hard
 
@@ -2919,6 +2933,22 @@ __metadata:
   version: 1.5.344
   resolution: "electron-to-chromium@npm:1.5.344"
   checksum: 10c0/36624a59b2da4cb2bdee3085f5fc814bc0ba5830162a26f45c4b189177455869fd9d9c2e05fa28e69a45fb95c04d3e995962ff0e1658f552dcbe147a731c4f1d
+  languageName: node
+  linkType: hard
+
+"electron-updater@npm:^6.6.2":
+  version: 6.8.4
+  resolution: "electron-updater@npm:6.8.4"
+  dependencies:
+    builder-util-runtime: "npm:9.6.0"
+    fs-extra: "npm:^10.1.0"
+    js-yaml: "npm:^4.1.0"
+    lazy-val: "npm:^1.0.5"
+    lodash.escaperegexp: "npm:^4.1.2"
+    lodash.isequal: "npm:^4.5.0"
+    semver: "npm:~7.7.3"
+    tiny-typed-emitter: "npm:^2.1.0"
+  checksum: 10c0/e6fa6731f3a6f3e6952db02b3bc70c56579bff89ac54ba06c449bf9465e3032f8b808abae8adafac961cab48a123242767c52e52dcc51c829c8d8ef07faf3d98
   languageName: node
   linkType: hard
 
@@ -4491,6 +4521,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"lodash.escaperegexp@npm:^4.1.2":
+  version: 4.1.2
+  resolution: "lodash.escaperegexp@npm:4.1.2"
+  checksum: 10c0/484ad4067fa9119bb0f7c19a36ab143d0173a081314993fe977bd00cf2a3c6a487ce417a10f6bac598d968364f992153315f0dbe25c9e38e3eb7581dd333e087
+  languageName: node
+  linkType: hard
+
+"lodash.isequal@npm:^4.5.0":
+  version: 4.5.0
+  resolution: "lodash.isequal@npm:4.5.0"
+  checksum: 10c0/dfdb2356db19631a4b445d5f37868a095e2402292d59539a987f134a8778c62a2810c2452d11ae9e6dcac71fc9de40a6fedcb20e2952a15b431ad8b29e50e28f
+  languageName: node
+  linkType: hard
+
 "lodash@npm:^4.17.15":
   version: 4.18.1
   resolution: "lodash@npm:4.18.1"
@@ -4538,56 +4582,6 @@ __metadata:
   checksum: 10c0/36128e4de34791838abe979b19927c26e67201ca5acf00880377af7d765b38d1c60847e01c5ec61b1a260c48029084ab3893a3925fd6e48a04011364b089991b
   languageName: node
   linkType: hard
-
-"m3u8-viewer@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "m3u8-viewer@workspace:."
-  dependencies:
-    "@eslint/js": "npm:^10.0.1"
-    "@playwright/test": "npm:^1.59.1"
-    "@testing-library/dom": "npm:^10.4.1"
-    "@testing-library/jest-dom": "npm:^6.9.1"
-    "@testing-library/react": "npm:^16.3.2"
-    "@testing-library/user-event": "npm:^14.6.1"
-    "@types/aria-query": "npm:^5.0.4"
-    "@types/node": "npm:^24.12.2"
-    "@types/react": "npm:^19.2.14"
-    "@types/react-dom": "npm:^19.2.3"
-    "@vitejs/plugin-react": "npm:^6.0.1"
-    "@vitest/coverage-v8": "npm:^4.1.5"
-    adm-zip: "npm:^0.5.17"
-    autoprefixer: "npm:^10.5.0"
-    cross-env: "npm:^10.1.0"
-    electron: "npm:^41.3.0"
-    electron-builder: "npm:^26.8.1"
-    electron-store: "npm:^11.0.2"
-    esbuild: "npm:^0.28.0"
-    eslint: "npm:^10.2.1"
-    eslint-config-prettier: "npm:^10.1.8"
-    eslint-plugin-react-hooks: "npm:^7.1.1"
-    eslint-plugin-react-refresh: "npm:^0.5.2"
-    globals: "npm:^17.5.0"
-    hls.js: "npm:^1.6.16"
-    isomorphic-git: "npm:^1.37.6"
-    jsdom: "npm:^29.1.0"
-    keytar: "npm:^7.9.0"
-    postcss: "npm:^8.5.12"
-    prettier: "npm:^3.8.3"
-    react: "npm:^19.2.5"
-    react-dom: "npm:^19.2.5"
-    react-icons: "npm:^5.6.0"
-    rollup: "npm:^4.60.2"
-    tailwindcss: "npm:^3.4.17"
-    typescript: "npm:~6.0.2"
-    typescript-eslint: "npm:^8.59.1"
-    vite: "npm:^8.0.10"
-    vite-plugin-electron: "npm:^0.29.1"
-    vite-plugin-electron-renderer: "npm:^0.14.6"
-    vitest: "npm:^4.1.5"
-    zod: "npm:^4.3.6"
-    zustand: "npm:^5.0.12"
-  languageName: unknown
-  linkType: soft
 
 "magic-string@npm:^0.30.21":
   version: 0.30.21
@@ -6200,6 +6194,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"tiny-typed-emitter@npm:^2.1.0":
+  version: 2.1.0
+  resolution: "tiny-typed-emitter@npm:2.1.0"
+  checksum: 10c0/522bed4c579ee7ee16548540cb693a3d098b137496110f5a74bff970b54187e6b7343a359b703e33f77c5b4b90ec6cebc0d0ec3dbdf1bd418723c5c3ce36d8a2
+  languageName: node
+  linkType: hard
+
 "tinybench@npm:^2.9.0":
   version: 2.9.0
   resolution: "tinybench@npm:2.9.0"
@@ -6486,6 +6487,59 @@ __metadata:
   checksum: 10c0/4ef57b45aa820d7ac6496e9208559986c665e49447cb072744c13b66925a362d96dd5a46c4530a6b8e203e5db5fe849369444440cb22ecfc26c679359e5dfa3c
   languageName: node
   linkType: hard
+
+"url-viewer@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "url-viewer@workspace:."
+  dependencies:
+    "@eslint/js": "npm:^10.0.1"
+    "@m3u8viewer/plugin-sdk": "git+https://github.com/URLViewer/UrlViewer-SDK.git"
+    "@playwright/test": "npm:^1.59.1"
+    "@testing-library/dom": "npm:^10.4.1"
+    "@testing-library/jest-dom": "npm:^6.9.1"
+    "@testing-library/react": "npm:^16.3.2"
+    "@testing-library/user-event": "npm:^14.6.1"
+    "@types/aria-query": "npm:^5.0.4"
+    "@types/node": "npm:^24.12.2"
+    "@types/react": "npm:^19.2.14"
+    "@types/react-dom": "npm:^19.2.3"
+    "@types/semver": "npm:^7.7.1"
+    "@vitejs/plugin-react": "npm:^6.0.1"
+    "@vitest/coverage-v8": "npm:^4.1.5"
+    adm-zip: "npm:^0.5.17"
+    autoprefixer: "npm:^10.5.0"
+    cross-env: "npm:^10.1.0"
+    electron: "npm:^41.3.0"
+    electron-builder: "npm:^26.8.1"
+    electron-store: "npm:^11.0.2"
+    electron-updater: "npm:^6.6.2"
+    esbuild: "npm:^0.28.0"
+    eslint: "npm:^10.2.1"
+    eslint-config-prettier: "npm:^10.1.8"
+    eslint-plugin-react-hooks: "npm:^7.1.1"
+    eslint-plugin-react-refresh: "npm:^0.5.2"
+    globals: "npm:^17.5.0"
+    hls.js: "npm:^1.6.16"
+    isomorphic-git: "npm:^1.37.6"
+    jsdom: "npm:^29.1.0"
+    keytar: "npm:^7.9.0"
+    postcss: "npm:^8.5.12"
+    prettier: "npm:^3.8.3"
+    react: "npm:^19.2.5"
+    react-dom: "npm:^19.2.5"
+    react-icons: "npm:^5.6.0"
+    rollup: "npm:^4.60.2"
+    tailwindcss: "npm:^3.4.17"
+    typescript: "npm:~6.0.2"
+    typescript-eslint: "npm:^8.59.1"
+    vite: "npm:^8.0.10"
+    vite-plugin-electron: "npm:^0.29.1"
+    vite-plugin-electron-renderer: "npm:^0.14.6"
+    vitest: "npm:^4.1.5"
+    zod: "npm:^4.3.6"
+    zustand: "npm:^5.0.12"
+  languageName: unknown
+  linkType: soft
 
 "utf8-byte-length@npm:^1.0.1":
   version: 1.0.5

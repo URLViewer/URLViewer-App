@@ -1,17 +1,17 @@
-import electron from "electron";
+import { app, BrowserWindow } from "electron";
 import path from "node:path";
 import { registerIpcHandlers, cleanupIpcHandlers } from "@electron/ipc/handlers";
 import { PluginManager } from "@electron/services/pluginManager";
 import { AppStoreService } from "@electron/store/appStore";
-import { NoopUpdateProvider } from "@electron/updater/provider";
+import { createUpdateProvider } from "@electron/updater/provider";
 
 const currentDir = __dirname;
 const store = new AppStoreService();
 const pluginManager = new PluginManager(store);
-const updateProvider = new NoopUpdateProvider();
+const updateProvider = createUpdateProvider();
 
 async function createWindow(): Promise<void> {
-  const mainWindow = new electron.BrowserWindow({
+  const mainWindow = new BrowserWindow({
     width: 1480,
     height: 920,
     minWidth: 1200,
@@ -46,27 +46,28 @@ async function createWindow(): Promise<void> {
     mainWindow.webContents.send("app:close-active-tab");
   });
 
-  await updateProvider.checkForUpdates();
+  const updateStatus = await updateProvider.checkForUpdates();
+  console.info(`[updater] enabled=${updateStatus.enabled} message=${updateStatus.message}`);
 }
 
-electron.app.whenReady().then(async () => {
+app.whenReady().then(async () => {
   registerIpcHandlers(store, pluginManager);
   await createWindow();
 
-  electron.app.on("activate", async () => {
-    if (electron.BrowserWindow.getAllWindows().length === 0) {
+  app.on("activate", async () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
       await createWindow();
     }
   });
 });
 
-electron.app.on("window-all-closed", () => {
+app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
-    electron.app.quit();
+    app.quit();
   }
 });
 
-electron.app.on("quit", () => {
+app.on("quit", () => {
   cleanupIpcHandlers();
 });
 
