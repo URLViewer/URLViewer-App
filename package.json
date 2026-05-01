@@ -2,6 +2,8 @@
   "name": "url-viewer",
   "private": true,
   "version": "1.0.0",
+  "description": "URLを動画ソースとして登録・管理する Electron アプリ",
+  "author": "URLViewer",
   "packageManager": "yarn@4.13.0",
   "main": "dist-electron/main/index.cjs",
   "scripts": {
@@ -21,7 +23,6 @@
   "dependencies": {
     "@m3u8viewer/plugin-sdk": "git+https://github.com/URLViewer/UrlViewer-SDK.git",
     "adm-zip": "^0.5.17",
-    "electron": "^41.3.0",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.6.2",
     "hls.js": "^1.6.16",
@@ -49,6 +50,7 @@
     "@vitest/coverage-v8": "^4.1.5",
     "autoprefixer": "^10.5.0",
     "cross-env": "^10.1.0",
+    "electron": "^41.3.0",
     "electron-builder": "^26.8.1",
     "esbuild": "^0.28.0",
     "eslint": "^10.2.1",

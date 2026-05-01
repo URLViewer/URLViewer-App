@@ -19,6 +19,8 @@ test-results
 .m3u8-viewer-data
 .external
 .yarn
+.env
+release
 
 # Editor directories and files
 .vscode/*
