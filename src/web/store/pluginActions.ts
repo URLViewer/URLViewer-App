@@ -3,7 +3,6 @@ import type {
   InstallPluginResult,
   PluginListItem,
 } from "@shared/types";
-import { resolveInputPanelPlugins } from "@web/plugins/registry";
 
 type PluginStateSnapshot = {
   plugins: PluginListItem[];
@@ -16,8 +15,10 @@ type InstallActionResult = {
 };
 
 export async function refreshPluginState(): Promise<PluginStateSnapshot> {
-  const plugins = await window.m3u8Viewer.plugins.list();
-  const pluginPanels = resolveInputPanelPlugins(plugins);
+  const [plugins, pluginPanels] = await Promise.all([
+    window.m3u8Viewer.plugins.list(),
+    window.m3u8Viewer.plugins.listPanels(),
+  ]);
   return { plugins, pluginPanels };
 }
 

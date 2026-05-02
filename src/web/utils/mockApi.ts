@@ -114,6 +114,12 @@ export function createBrowserMockApi(): Window["m3u8Viewer"] {
           reason: "mock-not-supported",
         };
       },
+      resolveInput: async (pluginId: string, input: string, timeoutMs: number): Promise<string[]> => {
+        void pluginId;
+        void input;
+        void timeoutMs;
+        return [];
+      },
       pickZip: async () => null,
       pickFolder: async () => null,
     },

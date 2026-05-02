@@ -1,7 +1,8 @@
 import { app } from "electron";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { mkdtemp, readFile, rm, cp, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm, cp, mkdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import * as fs from "node:fs";
 import os from "node:os";
@@ -12,10 +13,12 @@ import type {
   InstallPluginResult,
   PluginListItem,
   PluginManifestV1,
+  PluginPanelSpec,
   PluginState,
 } from "@shared/types";
 import { AppStoreService } from "@electron/store/appStore";
 import { deletePluginToken, getPluginToken, savePluginToken } from "@electron/services/keychain";
+import type { RendererPluginContext } from "@m3u8viewer/plugin-sdk";
 
 const BUILTIN_PLUGIN_IDS = new Set(BUILTIN_PLUGIN_SEEDS.map((item) => item.id));
 const require = createRequire(__filename);
@@ -85,6 +88,18 @@ type InstallSource = {
   sourceRef: string;
 };
 
+type ExternalPluginLike = {
+  runtime?: {
+    input?: {
+      panel?: PluginPanelSpec;
+      resolveToVideoSources?: (
+        input: string,
+        context: RendererPluginContext,
+      ) => Promise<string[]> | string[];
+    };
+  };
+};
+
 export class PluginManager {
   private pluginsDir: string;
 
@@ -123,9 +138,69 @@ export class PluginManager {
 
   async getInputPanels(): Promise<PluginListItem[]> {
     const state = this.getState();
-    return state.items
+    const candidates = state.items
       .filter((item) => item.enabled && item.manifest.capabilities.includes("input-panel"))
       .sort((a, b) => a.order - b.order);
+
+    const resolved = await Promise.all(
+      candidates.map(async (item) => {
+        try {
+          const runtime = await this.loadExternalInputRuntime(item);
+          const panel =
+            runtime.panel ?? {
+              title: item.manifest.name,
+              inputLabel: "入力",
+              submitLabel: "実行",
+            };
+          return { ...item, panel };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "unknown";
+          console.warn(`[plugin] panel-load-failed pluginId=${item.id} reason=${message}`);
+          return null;
+        }
+      }),
+    );
+
+    return resolved.filter(
+      (item): item is NonNullable<(typeof resolved)[number]> => item !== null,
+    );
+  }
+
+  async resolveInput(pluginId: string, input: string, timeoutMs: number): Promise<string[]> {
+    const state = this.getState();
+    const plugin = state.items.find((item) => item.id === pluginId);
+    if (!plugin || !plugin.enabled || !plugin.manifest.capabilities.includes("input-panel")) {
+      throw new Error("plugin-entry-load-failed");
+    }
+
+    const runtime = await this.loadExternalInputRuntime(plugin);
+    const boundedTimeoutMs = Math.max(1000, timeoutMs);
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error("plugin-timeout")), boundedTimeoutMs);
+    });
+
+    try {
+      const resolved = Promise.resolve(
+        runtime.resolveToVideoSources(input, this.createRuntimeContext()),
+      );
+      const urls = await Promise.race([resolved, timeoutPromise]);
+      return [...new Set((Array.isArray(urls) ? urls : []).filter((entry) => typeof entry === "string"))];
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message === "plugin-timeout" || error.message === "plugin-entry-load-failed")
+      ) {
+        throw error;
+      }
+      throw new Error("plugin-runtime-error", {
+        cause: error,
+      });
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }
   }
 
   async enable(pluginId: string, enabled: boolean): Promise<PluginListItem[]> {
@@ -314,5 +389,72 @@ export class PluginManager {
     const raw = await readFile(manifestPath, "utf-8");
     const parsed = pluginManifestSchema.parse(JSON.parse(raw));
     return parsed;
+  }
+
+  private createRuntimeContext(): RendererPluginContext {
+    return {
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      nowIso: new Date().toISOString(),
+      appVersion: app.getVersion(),
+    };
+  }
+
+  private resolvePluginEntryPath(plugin: PluginListItem): string {
+    if (!plugin.localPath) {
+      throw new Error("plugin-entry-load-failed");
+    }
+
+    const pluginRoot = path.resolve(plugin.localPath);
+    const entryPath = path.resolve(pluginRoot, plugin.manifest.entry);
+    const relative = path.relative(pluginRoot, entryPath);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw new Error("plugin-entry-load-failed");
+    }
+    if (!existsSync(entryPath)) {
+      throw new Error("plugin-entry-load-failed");
+    }
+
+    return entryPath;
+  }
+
+  private async importPluginModule(entryPath: string): Promise<ExternalPluginLike> {
+    const entryStat = await stat(entryPath);
+    const entryUrl = pathToFileURL(entryPath);
+    entryUrl.searchParams.set("mtime", String(entryStat.mtimeMs));
+    const loaded: unknown = await import(entryUrl.href);
+    const resolved =
+      loaded && typeof loaded === "object" && "default" in loaded
+        ? (loaded as { default: unknown }).default
+        : loaded;
+
+    if (!resolved || typeof resolved !== "object") {
+      throw new Error("plugin-entry-load-failed");
+    }
+
+    return resolved as ExternalPluginLike;
+  }
+
+  private async loadExternalInputRuntime(plugin: PluginListItem): Promise<{
+    panel?: PluginPanelSpec;
+    resolveToVideoSources: (
+      input: string,
+      context: RendererPluginContext,
+    ) => Promise<string[]> | string[];
+  }> {
+    if (plugin.sourceType === "builtin") {
+      throw new Error("plugin-entry-load-failed");
+    }
+
+    const entryPath = this.resolvePluginEntryPath(plugin);
+    const loaded = await this.importPluginModule(entryPath);
+    const runtime = loaded.runtime?.input;
+    if (!runtime || typeof runtime.resolveToVideoSources !== "function") {
+      throw new Error("plugin-entry-load-failed");
+    }
+
+    return {
+      panel: runtime.panel,
+      resolveToVideoSources: runtime.resolveToVideoSources,
+    };
   }
 }

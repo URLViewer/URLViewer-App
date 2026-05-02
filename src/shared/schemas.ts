@@ -146,3 +146,9 @@ export const pluginRemoveSchema = z.object({
 export const pluginReorderSchema = z.object({
   orderedIds: z.array(z.string().min(1)),
 });
+
+export const pluginResolveInputSchema = z.object({
+  pluginId: z.string().min(1),
+  input: z.string(),
+  timeoutMs: z.number().int().min(1000).max(20000),
+});

@@ -1,5 +1,4 @@
 import { ensureActiveTab } from "@web/store/libraryHelpers";
-import { resolveInputPanelPlugins } from "@web/plugins/registry";
 import type { AppState, AppStoreSet } from "@web/store/appStoreTypes";
 
 type UiActions = Pick<
@@ -16,13 +15,13 @@ type UiActions = Pick<
 export function createUiActions(set: AppStoreSet): UiActions {
   return {
     async loadInitialData() {
-      const [settings, library, plugins, appVersion] = await Promise.all([
+      const [settings, library, plugins, pluginPanels, appVersion] = await Promise.all([
         window.m3u8Viewer.settings.get(),
         window.m3u8Viewer.library.get(),
         window.m3u8Viewer.plugins.list(),
+        window.m3u8Viewer.plugins.listPanels(),
         window.m3u8Viewer.app.getVersion(),
       ]);
-      const panels = resolveInputPanelPlugins(plugins);
 
       const preparedLibrary = settings.restoreTabsOnLaunch
         ? library
@@ -39,7 +38,7 @@ export function createUiActions(set: AppStoreSet): UiActions {
         settings,
         library: ensureActiveTab(preparedLibrary),
         plugins,
-        pluginPanels: panels,
+        pluginPanels,
         appVersion,
       });
     },

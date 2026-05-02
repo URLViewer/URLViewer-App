@@ -10,7 +10,6 @@ import {
   executeRegistrationJobs,
   type RegistrationJob,
 } from "@web/store/registrationWorkflows";
-import { runRendererInputPlugin } from "@web/plugins/registry";
 import type { AppState, AppStoreGet, AppStoreSet } from "@web/store/appStoreTypes";
 
 type RegistrationActions = Pick<
@@ -95,7 +94,7 @@ export function createRegistrationActions(
       set({ busy: true, lastMessage: "プラグイン入力を処理中..." });
       let urls: string[];
       try {
-        urls = await runRendererInputPlugin(pluginId, value, settings.validationTimeoutMs);
+        urls = await window.m3u8Viewer.plugins.resolveInput(pluginId, value, settings.validationTimeoutMs);
       } catch (error) {
         const message =
           error instanceof Error &&

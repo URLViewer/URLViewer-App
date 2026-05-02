@@ -38,6 +38,7 @@ declare global {
         installFromZip: (path: string) => Promise<InstallPluginResult>;
         installFromFolder: (path: string) => Promise<InstallPluginResult>;
         installFromGit: (payload: GitInstallPayload) => Promise<InstallPluginResult>;
+        resolveInput: (pluginId: string, input: string, timeoutMs: number) => Promise<string[]>;
         pickZip: () => Promise<string | null>;
         pickFolder: () => Promise<string | null>;
       };

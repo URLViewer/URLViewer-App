@@ -8,6 +8,7 @@ import {
   libraryStateSchema,
   pluginEnableSchema,
   pluginRemoveSchema,
+  pluginResolveInputSchema,
   pluginReorderSchema,
   registerVideoSourceSchema,
   validateVideoSourceSchema,
@@ -117,6 +118,10 @@ export function registerIpcHandlers(store: AppStoreService, pluginManager: Plugi
   ipcMain.handle("plugins:installFromGit", (_event, payload) => {
     const parsed = gitInstallPayloadSchema.parse(payload);
     return pluginManager.installFromGit(parsed);
+  });
+  ipcMain.handle("plugins:resolveInput", (_event, payload) => {
+    const parsed = pluginResolveInputSchema.parse(payload);
+    return pluginManager.resolveInput(parsed.pluginId, parsed.input, parsed.timeoutMs);
   });
 
   ipcMain.handle("plugins:pickZip", async (event) => {
@@ -250,6 +255,7 @@ export function cleanupIpcHandlers(): void {
   ipcMain.removeHandler("plugins:installFromZip");
   ipcMain.removeHandler("plugins:installFromFolder");
   ipcMain.removeHandler("plugins:installFromGit");
+  ipcMain.removeHandler("plugins:resolveInput");
   ipcMain.removeHandler("plugins:pickZip");
   ipcMain.removeHandler("plugins:pickFolder");
   ipcMain.removeHandler("player:saveResume");

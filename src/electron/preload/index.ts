@@ -49,6 +49,8 @@ const api = {
       ipcRenderer.invoke("plugins:installFromFolder", { path }),
     installFromGit: (payload: GitInstallPayload): Promise<InstallPluginResult> =>
       ipcRenderer.invoke("plugins:installFromGit", payload),
+    resolveInput: (pluginId: string, input: string, timeoutMs: number): Promise<string[]> =>
+      ipcRenderer.invoke("plugins:resolveInput", { pluginId, input, timeoutMs }),
     pickZip: (): Promise<string | null> => ipcRenderer.invoke("plugins:pickZip"),
     pickFolder: (): Promise<string | null> => ipcRenderer.invoke("plugins:pickFolder"),
   },
