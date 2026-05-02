@@ -29,7 +29,14 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
+      - name: Print Release Context
+        shell: bash
+        run: |
+          echo "event_name=${GITHUB_EVENT_NAME}"
+          echo "ref=${GITHUB_REF}"
+
       - name: Validate Release Token
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
@@ -41,7 +48,12 @@ jobs:
           fi
 
       - name: Build And Publish
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: yarn dist:publish
+
+      - name: Build Only (Manual Dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: yarn dist

@@ -10,7 +10,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "tsc --noEmit && vite build",
     "dist": "yarn build && electron-builder",
-    "dist:publish": "yarn build && electron-builder --publish always",
+    "dist:publish": "yarn build && electron-builder --publish onTag",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
