@@ -86,7 +86,12 @@ export function createPluginActions(set: AppStoreSet, get: AppStoreGet): PluginA
       if (!result.changed) {
         if (result.message) {
           set({ lastMessage: result.message });
-          get().appendLog({ level: "error", scope: "plugins", message: result.message });
+          get().appendLog({
+            level: "error",
+            scope: "plugins",
+            message: result.message,
+            detail: result.detail,
+          });
         }
         return;
       }

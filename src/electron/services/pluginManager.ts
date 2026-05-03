@@ -88,6 +88,13 @@ type InstallSource = {
   sourceRef: string;
 };
 
+type GitInstallTarget = {
+  cloneUrl: string;
+  branch?: string;
+  pluginSubPath?: string;
+  sourceRef: string;
+};
+
 type ExternalPluginLike = {
   runtime?: {
     input?: {
@@ -291,26 +298,30 @@ export class PluginManager {
   async installFromGit(payload: GitInstallPayload): Promise<InstallPluginResult> {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "m3u8-plugin-git-"));
     try {
+      const target = this.resolveGitInstallTarget(payload);
       const { git, http } = getGitRuntime();
       await git.clone({
         fs,
         http,
         dir: tempDir,
-        url: payload.url,
+        url: target.cloneUrl,
         singleBranch: true,
         depth: 1,
-        ref: payload.branch,
+        ref: target.branch,
         onAuth: () =>
           payload.token
             ? { username: "token", password: payload.token }
             : {},
       });
 
-      const result = await this.installFromFolderInternal(tempDir, {
-        sourceType: "git",
-        sourceRef: payload.url,
+      const pluginRoot = this.resolvePluginRootFromGitClone(tempDir, target.pluginSubPath);
+      const sourceType: PluginListItem["sourceType"] = target.pluginSubPath ? "folder" : "git";
+
+      const result = await this.installFromFolderInternal(pluginRoot, {
+        sourceType,
+        sourceRef: target.sourceRef,
       });
-      if (result.status === "installed" && payload.token) {
+      if (result.status === "installed" && sourceType === "git" && payload.token) {
         await savePluginToken(result.plugin.id, payload.token);
       }
 
@@ -386,9 +397,34 @@ export class PluginManager {
 
   private async readManifest(pluginRoot: string): Promise<PluginManifestV1> {
     const manifestPath = path.join(pluginRoot, "plugin.json");
-    const raw = await readFile(manifestPath, "utf-8");
-    const parsed = pluginManifestSchema.parse(JSON.parse(raw));
-    return parsed;
+    let raw: string;
+    try {
+      raw = await readFile(manifestPath, "utf-8");
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: string }).code === "ENOENT"
+      ) {
+        throw new Error(`plugin-manifest-not-found: ${manifestPath}`);
+      }
+      throw error;
+    }
+
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(raw);
+    } catch {
+      throw new Error(`plugin-manifest-invalid-json: ${manifestPath}`);
+    }
+
+    try {
+      return pluginManifestSchema.parse(parsedJson);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "unknown";
+      throw new Error(`plugin-manifest-invalid-schema: ${reason}`);
+    }
   }
 
   private createRuntimeContext(): RendererPluginContext {
@@ -456,5 +492,82 @@ export class PluginManager {
       panel: runtime.panel,
       resolveToVideoSources: runtime.resolveToVideoSources,
     };
+  }
+
+  private resolveGitInstallTarget(payload: GitInstallPayload): GitInstallTarget {
+    const rawUrl = payload.url.trim();
+    const explicitBranch = payload.branch?.trim() || undefined;
+
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl);
+    } catch {
+      return {
+        cloneUrl: rawUrl,
+        branch: explicitBranch,
+        sourceRef: rawUrl,
+      };
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    const isGitHub = hostname === "github.com" || hostname === "www.github.com";
+    if (!isGitHub) {
+      return {
+        cloneUrl: rawUrl,
+        branch: explicitBranch,
+        sourceRef: rawUrl,
+      };
+    }
+
+    const parts = parsed.pathname
+      .split("/")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+    if (parts.length < 2) {
+      return {
+        cloneUrl: rawUrl,
+        branch: explicitBranch,
+        sourceRef: rawUrl,
+      };
+    }
+
+    const owner = parts[0];
+    const repo = parts[1].replace(/\.git$/i, "");
+    const cloneUrl = `https://github.com/${owner}/${repo}.git`;
+
+    if (parts[2] === "tree" && parts.length >= 5) {
+      const branchFromUrl = decodeURIComponent(parts[3]);
+      const subPath = parts
+        .slice(4)
+        .map((part) => decodeURIComponent(part))
+        .join("/");
+      return {
+        cloneUrl,
+        branch: explicitBranch ?? branchFromUrl,
+        pluginSubPath: subPath,
+        sourceRef: rawUrl,
+      };
+    }
+
+    return {
+      cloneUrl,
+      branch: explicitBranch,
+      sourceRef: rawUrl,
+    };
+  }
+
+  private resolvePluginRootFromGitClone(clonedRepoRoot: string, pluginSubPath?: string): string {
+    if (!pluginSubPath) {
+      return clonedRepoRoot;
+    }
+
+    const root = path.resolve(clonedRepoRoot);
+    const resolved = path.resolve(clonedRepoRoot, pluginSubPath);
+    const relative = path.relative(root, resolved);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw new Error("plugin-entry-load-failed");
+    }
+
+    return resolved;
   }
 }

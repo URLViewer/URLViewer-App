@@ -17,12 +17,17 @@ export function App() {
   const [isDrawerContentVisible, setDrawerContentVisible] = useState(true);
   const [isValidateConfirmOpen, setValidateConfirmOpen] = useState(false);
   const [rightPanel, setRightPanel] = useState<"queue" | "log" | null>(null);
+  const [unreadLogCount, setUnreadLogCount] = useState(0);
+  const [toast, setToast] = useState<{ id: number; level: "success" | "error"; message: string } | null>(null);
   const drawerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSeenLogIdRef = useRef<number | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loaded = useAppStore((state) => state.loaded);
   const settings = useAppStore((state) => state.settings);
   const currentPanel = useAppStore((state) => state.currentPanel);
   const appVersion = useAppStore((state) => state.appVersion);
+  const activityLogs = useAppStore((state) => state.activityLogs);
   const busy = useAppStore((state) => state.busy);
   const videos = useAppStore((state) => state.library.videos);
   const pendingValidationsCount = useAppStore((state) => state.pendingValidations.length);
@@ -41,8 +46,66 @@ export function App() {
       if (drawerTimerRef.current) {
         clearTimeout(drawerTimerRef.current);
       }
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!loaded) {
+      return;
+    }
+    const latestLog = activityLogs[0];
+    if (!latestLog) {
+      lastSeenLogIdRef.current = null;
+      setUnreadLogCount(0);
+      return;
+    }
+
+    const previousLogId = lastSeenLogIdRef.current;
+    if (previousLogId === null) {
+      lastSeenLogIdRef.current = latestLog.id;
+      return;
+    }
+    if (latestLog.id === previousLogId) {
+      return;
+    }
+
+    if (latestLog.id > previousLogId) {
+      if (rightPanel !== "log") {
+        setUnreadLogCount((count) => count + 1);
+      }
+      if (latestLog.level === "success" || latestLog.level === "error") {
+        setToast({
+          id: latestLog.id,
+          level: latestLog.level,
+          message: latestLog.message,
+        });
+      }
+    }
+
+    lastSeenLogIdRef.current = latestLog.id;
+  }, [activityLogs, loaded, rightPanel]);
+
+  useEffect(() => {
+    if (rightPanel === "log") {
+      setUnreadLogCount(0);
+    }
+  }, [rightPanel]);
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3200);
+  }, [toast]);
 
   const openDrawer = () => {
     if (drawerTimerRef.current) {
@@ -147,6 +210,11 @@ export function App() {
               onClick={() => setRightPanel((current) => (current === "log" ? null : "log"))}
             >
               <Icon name="log" />
+              {unreadLogCount > 0 && (
+                <span className="topbar-log-badge">
+                  {unreadLogCount > 99 ? "99+" : unreadLogCount}
+                </span>
+              )}
             </button>
             <button className="icon-btn" title="設定" onClick={() => setSettingsOpen(true)}>
               <Icon name="settings" />
@@ -261,6 +329,20 @@ export function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className={`app-toast ${toast.level === "success" ? "app-toast-success" : "app-toast-error"}`}>
+          <p className="app-toast-message">{toast.message}</p>
+          <button
+            className="app-toast-close"
+            onClick={() => setToast(null)}
+            type="button"
+            aria-label="通知を閉じる"
+          >
+            <Icon name="x" className="h-4 w-4" />
+          </button>
         </div>
       )}
     </>
