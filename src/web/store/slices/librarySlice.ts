@@ -135,8 +135,8 @@ export function createLibraryActions(set: AppStoreSet, get: AppStoreGet): Librar
     async renameVideo(videoId, label) {
       const { library } = get();
       const nextLibrary = buildLibraryForRenameVideo(library, videoId, label);
-      await window.m3u8Viewer.library.save(nextLibrary);
       set({ library: nextLibrary });
+      await window.m3u8Viewer.library.save(nextLibrary);
     },
   };
 }

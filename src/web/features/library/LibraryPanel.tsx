@@ -8,6 +8,7 @@ export function LibraryPanel() {
   const [deleteTargetVideoId, setDeleteTargetVideoId] = useState<string | null>(null);
   const [deleteDialogClosing, setDeleteDialogClosing] = useState(false);
   const [isBulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [draftLabels, setDraftLabels] = useState<Record<string, string>>({});
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const videos = useAppStore((state) => state.library.videos);
@@ -20,10 +21,6 @@ export function LibraryPanel() {
   const renameVideo = useAppStore((state) => state.renameVideo);
   const requestPlaybackCommand = useAppStore((state) => state.requestPlaybackCommand);
 
-  const sortedVideos = useMemo(
-    () => [...videos].sort((a, b) => a.label.localeCompare(b.label)),
-    [videos],
-  );
   const groupNamesByVideoId = useMemo(() => {
     const map = new Map<string, string[]>();
 
@@ -45,6 +42,34 @@ export function LibraryPanel() {
       }
     };
   }, []);
+
+  const commitLabelEdit = async (videoId: string) => {
+    const draft = draftLabels[videoId];
+    if (draft === undefined) {
+      return;
+    }
+
+    const target = videos.find((video) => video.id === videoId);
+    if (!target) {
+      return;
+    }
+
+    try {
+      const nextLabel = draft.trim();
+      if (nextLabel.length > 0 && nextLabel !== target.label) {
+        await renameVideo(videoId, nextLabel);
+      }
+    } finally {
+      setDraftLabels((current) => {
+        if (!(videoId in current)) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[videoId];
+        return next;
+      });
+    }
+  };
 
   const openDeleteDialog = (videoId: string) => {
     if (closeTimerRef.current) {
@@ -82,11 +107,11 @@ export function LibraryPanel() {
       <div className="mb-2 flex items-center justify-between">
         <span className="panel-title">ライブラリ</span>
         <div className="flex items-center gap-2">
-          <span className="panel-count">{sortedVideos.length}</span>
+          <span className="panel-count">{videos.length}</span>
           <button
             className="icon-btn-sm icon-btn-danger"
             title="全件削除"
-            disabled={sortedVideos.length === 0}
+            disabled={videos.length === 0}
             onClick={() => setBulkDeleteDialogOpen(true)}
           >
             <Icon name="trash" className="h-4 w-4" />
@@ -95,7 +120,7 @@ export function LibraryPanel() {
       </div>
 
       <div className="space-y-2">
-        {sortedVideos.map((video) => {
+        {videos.map((video) => {
           const isActive = tabs.activeVideoId === video.id;
           const isPlaying = isActive && playback.videoId === video.id && playback.status === "playing";
           const playbackIcon = isPlaying ? "pause" : "play";
@@ -108,8 +133,32 @@ export function LibraryPanel() {
             >
               <input
                 className="panel-input w-full"
-                value={video.label}
-                onChange={(event) => void renameVideo(video.id, event.target.value)}
+                value={draftLabels[video.id] ?? video.label}
+                onChange={(event) => {
+                  const { value } = event.target;
+                  setDraftLabels((current) => ({
+                    ...current,
+                    [video.id]: value,
+                  }));
+                }}
+                onBlur={() => void commitLabelEdit(video.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.currentTarget.blur();
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    setDraftLabels((current) => {
+                      if (!(video.id in current)) {
+                        return current;
+                      }
+                      const next = { ...current };
+                      delete next[video.id];
+                      return next;
+                    });
+                    event.currentTarget.blur();
+                  }
+                }}
               />
 
               <button
@@ -145,7 +194,7 @@ export function LibraryPanel() {
           );
         })}
 
-        {sortedVideos.length === 0 && <p className="empty-text">動画なし</p>}
+        {videos.length === 0 && <p className="empty-text">動画なし</p>}
       </div>
 
       {deleteTargetVideoId && (
@@ -181,7 +230,7 @@ export function LibraryPanel() {
           <div className="floating-dialog floating-enter" onClick={(event) => event.stopPropagation()}>
             <p className="text-sm font-medium text-slate-800">動画を全件削除しますか？</p>
             <p className="mt-1 text-xs text-slate-500">
-              対象: {sortedVideos.length}件
+              対象: {videos.length}件
             </p>
             <div className="dialog-actions">
               <button
