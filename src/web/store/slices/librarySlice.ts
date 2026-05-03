@@ -3,6 +3,7 @@ import {
   buildLibraryForAddGroupWithVideo,
   buildLibraryForAddToFavorites,
   buildLibraryForAddToGroup,
+  buildLibraryForRemoveVideoFromGroup,
   buildLibraryForCloseTab,
   buildLibraryForOpenTab,
   buildLibraryForRemoveGroup,
@@ -13,7 +14,9 @@ import {
   buildLibraryForSetActiveTab,
   buildLibraryForClearVideos,
   buildLibraryForLockVideos,
+  buildLibraryForToggleVideoLock,
   buildLibraryForLockGroups,
+  buildLibraryForToggleGroupLock,
   buildLibraryForSetDuration,
 } from "@web/store/libraryHelpers";
 import type { AppState, AppStoreGet, AppStoreSet } from "@web/store/appStoreTypes";
@@ -26,6 +29,7 @@ type LibraryActions = Pick<
   | "saveResume"
   | "addGroup"
   | "addToGroup"
+  | "removeVideoFromGroup"
   | "removeGroup"
   | "removeVideo"
   | "clearAllVideos"
@@ -36,8 +40,10 @@ type LibraryActions = Pick<
   | "setVideoDuration"
   | "removeSelectedVideos"
   | "lockSelectedVideos"
+  | "toggleVideoLock"
   | "removeSelectedGroups"
   | "lockSelectedGroups"
+  | "toggleGroupLock"
 >;
 
 export function createLibraryActions(set: AppStoreSet, get: AppStoreGet): LibraryActions {
@@ -109,6 +115,13 @@ export function createLibraryActions(set: AppStoreSet, get: AppStoreGet): Librar
       const nextLibrary = buildLibraryForAddToGroup(library, groupId, videoId);
       await window.m3u8Viewer.library.save(nextLibrary);
       set({ library: nextLibrary });
+    },
+
+    async removeVideoFromGroup(groupId, videoId) {
+      const { library } = get();
+      const nextLibrary = buildLibraryForRemoveVideoFromGroup(library, groupId, videoId);
+      await window.m3u8Viewer.library.save(nextLibrary);
+      set({ library: nextLibrary, lastMessage: "グループから動画を外しました。" });
     },
 
     async addActiveVideoToFavorites() {
@@ -192,6 +205,27 @@ export function createLibraryActions(set: AppStoreSet, get: AppStoreGet): Librar
       appendLog({ level: "success", scope: "library", message: `選択動画をロックしました（${selectedVideoIds.length}件）。` });
     },
 
+    async toggleVideoLock(videoId) {
+      const { library, appendLog } = get();
+      const target = library.videos.find((video) => video.id === videoId);
+      if (!target) {
+        return;
+      }
+
+      const nextLibrary = buildLibraryForToggleVideoLock(library, videoId);
+      await window.m3u8Viewer.library.save(nextLibrary);
+      const nextLocked = !target.locked;
+      set({
+        library: nextLibrary,
+        lastMessage: nextLocked ? "動画をロックしました。" : "動画ロックを解除しました。",
+      });
+      appendLog({
+        level: "success",
+        scope: "library",
+        message: nextLocked ? "動画をロックしました。" : "動画ロックを解除しました。",
+      });
+    },
+
     async removeSelectedGroups() {
       const { library, selectedGroupIds, appendLog } = get();
       if (selectedGroupIds.length === 0) {
@@ -227,6 +261,27 @@ export function createLibraryActions(set: AppStoreSet, get: AppStoreGet): Librar
         lastMessage: `グループをロックしました（${selectedGroupIds.length}件）。`,
       });
       appendLog({ level: "success", scope: "groups", message: `選択グループをロックしました（${selectedGroupIds.length}件）。` });
+    },
+
+    async toggleGroupLock(groupId) {
+      const { library, appendLog } = get();
+      const target = library.groups.find((group) => group.id === groupId);
+      if (!target || target.builtin === "favorites") {
+        return;
+      }
+
+      const nextLibrary = buildLibraryForToggleGroupLock(library, groupId);
+      await window.m3u8Viewer.library.save(nextLibrary);
+      const nextLocked = !target.locked;
+      set({
+        library: nextLibrary,
+        lastMessage: nextLocked ? "グループをロックしました。" : "グループロックを解除しました。",
+      });
+      appendLog({
+        level: "success",
+        scope: "groups",
+        message: nextLocked ? "グループをロックしました。" : "グループロックを解除しました。",
+      });
     },
 
     async clearAllVideos() {

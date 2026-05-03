@@ -21,6 +21,9 @@ const CONTROL_HIDE_DELAY_MS = 3000;
 const FLOATING_CLOSE_MS = 140;
 const GROUP_NAME_MIN = 1;
 const GROUP_NAME_MAX = 10;
+const PREVIEW_CANVAS_WIDTH = 240;
+const PREVIEW_CANVAS_HEIGHT = 135;
+const PREVIEW_JPEG_QUALITY = 0.9;
 
 function messageForPlaybackFailure(failure: PlaybackFailure): string {
   if (failure.kind === "access-error") {
@@ -71,6 +74,9 @@ export function VideoPlayer() {
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewRequestTokenRef = useRef(0);
+  const previewReadyRef = useRef(false);
+  const previewCaptureRunningRef = useRef(false);
+  const previewQueuedTargetRef = useRef<{ time: number; x: number } | null>(null);
 
   const [error, setError] = useState<PlaybackErrorState | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -107,9 +113,15 @@ export function VideoPlayer() {
     const mapped = groups.map((group) => ({
       ...group,
       matched: inputLower.length > 0 && group.name.toLowerCase().includes(inputLower),
+      isFavorite: group.builtin === "favorites",
     }));
 
-    return mapped.sort((a, b) => Number(b.matched) - Number(a.matched) || a.name.localeCompare(b.name));
+    return mapped.sort((a, b) => {
+      if (a.isFavorite !== b.isFavorite) {
+        return a.isFavorite ? -1 : 1;
+      }
+      return Number(b.matched) - Number(a.matched) || a.name.localeCompare(b.name);
+    });
   }, [groups, inputLower]);
   const hasExactGroup = useMemo(
     () => groups.some((group) => group.name.trim().toLowerCase() === inputLower && inputLower.length > 0),
@@ -256,7 +268,11 @@ export function VideoPlayer() {
     const previewVideo = previewVideoRef.current;
     const previewCanvas = previewCanvasRef.current;
     if (!previewVideo || !previewCanvas || !Number.isFinite(time) || time < 0) {
-      setSeekPreview((current) => ({ ...current, visible: true, x, time, imageDataUrl: null }));
+      setSeekPreview((current) => ({ ...current, visible: true, x, time }));
+      return;
+    }
+    if (!previewReadyRef.current || previewVideo.readyState < HTMLMediaElement.HAVE_METADATA) {
+      setSeekPreview((current) => ({ ...current, visible: true, x, time }));
       return;
     }
 
@@ -283,31 +299,69 @@ export function VideoPlayer() {
         };
         previewVideo.addEventListener("seeked", onSeeked, { once: true });
         previewVideo.addEventListener("error", onError, { once: true });
-        previewVideo.currentTime = time;
+        if (typeof previewVideo.fastSeek === "function") {
+          previewVideo.fastSeek(time);
+        } else {
+          previewVideo.currentTime = time;
+        }
       });
 
       if (token !== previewRequestTokenRef.current) {
         return;
       }
 
-      const width = 160;
-      const height = 90;
+      const width = PREVIEW_CANVAS_WIDTH;
+      const height = PREVIEW_CANVAS_HEIGHT;
       previewCanvas.width = width;
       previewCanvas.height = height;
       const ctx = previewCanvas.getContext("2d");
       if (!ctx) {
         throw new Error("preview-context-failed");
       }
-      ctx.drawImage(previewVideo, 0, 0, width, height);
-      const imageDataUrl = previewCanvas.toDataURL("image/jpeg", 0.7);
-      setSeekPreview({ visible: true, x, time, imageDataUrl });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, width, height);
+
+      const sourceWidth = previewVideo.videoWidth;
+      const sourceHeight = previewVideo.videoHeight;
+      if (!sourceWidth || !sourceHeight) {
+        throw new Error("preview-size-unavailable");
+      }
+
+      const scale = Math.min(width / sourceWidth, height / sourceHeight);
+      const drawWidth = Math.round(sourceWidth * scale);
+      const drawHeight = Math.round(sourceHeight * scale);
+      const offsetX = Math.floor((width - drawWidth) / 2);
+      const offsetY = Math.floor((height - drawHeight) / 2);
+      ctx.drawImage(previewVideo, offsetX, offsetY, drawWidth, drawHeight);
+      const imageDataUrl = previewCanvas.toDataURL("image/jpeg", PREVIEW_JPEG_QUALITY);
+      setSeekPreview((current) => ({ ...current, visible: true, imageDataUrl }));
     } catch {
       if (token !== previewRequestTokenRef.current) {
         return;
       }
-      setSeekPreview((current) => ({ ...current, visible: true, x, time, imageDataUrl: null }));
+      setSeekPreview((current) => ({ ...current, visible: true }));
     }
   }, []);
+
+  const scheduleSeekPreviewCapture = useCallback((time: number, x: number) => {
+    previewQueuedTargetRef.current = { time, x };
+    if (previewCaptureRunningRef.current) {
+      return;
+    }
+
+    previewCaptureRunningRef.current = true;
+    void (async () => {
+      while (previewQueuedTargetRef.current) {
+        const target = previewQueuedTargetRef.current;
+        previewQueuedTargetRef.current = null;
+        await captureSeekPreviewImage(target.time, target.x);
+      }
+      previewCaptureRunningRef.current = false;
+    })();
+  }, [captureSeekPreviewImage]);
 
   const handleSeekHover = useCallback((clientX: number) => {
     const progressNode = progressRef.current;
@@ -321,8 +375,8 @@ export function VideoPlayer() {
     const time = ratio * duration;
     const x = ratio * rect.width;
     setSeekPreview((current) => ({ ...current, visible: true, x, time }));
-    void captureSeekPreviewImage(time, x);
-  }, [captureSeekPreviewImage, duration]);
+    scheduleSeekPreviewCapture(time, x);
+  }, [duration, scheduleSeekPreviewCapture]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -434,26 +488,64 @@ export function VideoPlayer() {
 
   useEffect(() => {
     if (!sourceUrl) {
+      previewReadyRef.current = false;
+      previewRequestTokenRef.current += 1;
       previewVideoRef.current = null;
       return;
     }
 
+    previewReadyRef.current = false;
+    previewRequestTokenRef.current += 1;
     const previewVideo = document.createElement("video");
     previewVideo.muted = true;
     previewVideo.preload = "auto";
-    previewVideo.crossOrigin = "anonymous";
-    previewVideo.src = sourceUrl;
+    previewVideo.playsInline = true;
     previewVideoRef.current = previewVideo;
+    setSeekPreview((current) => ({ ...current, imageDataUrl: null }));
+
+    const onReady = () => {
+      previewReadyRef.current = true;
+    };
+    const onError = () => {
+      previewReadyRef.current = false;
+    };
+
+    previewVideo.addEventListener("loadedmetadata", onReady);
+    previewVideo.addEventListener("canplay", onReady);
+    previewVideo.addEventListener("error", onError);
+
+    let unmountPreview: void | (() => void);
+    const previewPlugin = resolvePlaybackPlugin(sourceUrl, plugins);
+    if (previewPlugin) {
+      unmountPreview = previewPlugin.mount({
+        video: previewVideo,
+        sourceUrl,
+        onFatalError: () => {
+          previewReadyRef.current = false;
+        },
+      });
+    } else {
+      previewVideo.src = sourceUrl;
+    }
 
     return () => {
+      previewRequestTokenRef.current += 1;
+      previewReadyRef.current = false;
+      previewVideo.removeEventListener("loadedmetadata", onReady);
+      previewVideo.removeEventListener("canplay", onReady);
+      previewVideo.removeEventListener("error", onError);
       previewVideo.pause();
-      previewVideo.removeAttribute("src");
-      previewVideo.load();
+      if (typeof unmountPreview === "function") {
+        unmountPreview();
+      } else {
+        previewVideo.removeAttribute("src");
+        previewVideo.load();
+      }
       if (previewVideoRef.current === previewVideo) {
         previewVideoRef.current = null;
       }
     };
-  }, [sourceUrl]);
+  }, [plugins, sourceUrl]);
 
   useEffect(() => {
     if (!playbackCommand) {
@@ -634,6 +726,8 @@ export function VideoPlayer() {
         cancelAnimationFrame(seekRafRef.current);
       }
       previewRequestTokenRef.current += 1;
+      previewQueuedTargetRef.current = null;
+      previewCaptureRunningRef.current = false;
     };
   }, [clearHideTimer]);
 
@@ -678,6 +772,7 @@ export function VideoPlayer() {
     >
       <div className="viewer-stage" onDoubleClick={() => void toggleFullscreen()}>
         <video ref={videoRef} className="viewer-video" onClick={togglePlay} />
+        <canvas ref={previewCanvasRef} className="hidden" aria-hidden="true" />
         <div className="viewer-infobar-top">
           <span className="viewer-info-title-light" title={activeVideo?.label ?? ""}>
             {activeVideo?.label ?? "動画なし"}
@@ -728,14 +823,29 @@ export function VideoPlayer() {
                 <div className="group-simple-list">
                   {displayedGroups.map((group) => {
                     const linked = Boolean(activeVideoId && group.videoIds.includes(activeVideoId));
+                    const isFavorite = group.builtin === "favorites";
                     return (
                       <button
                         key={group.id}
-                        className={`group-simple-item ${linked ? "group-simple-item-linked" : ""}`}
+                        className={`group-simple-item ${linked ? "group-simple-item-linked" : ""} ${
+                          isFavorite ? "group-simple-item-favorite" : ""
+                        }`}
+                        title={linked ? "クリックでこのグループから外す" : "クリックでこのグループに追加"}
+                        aria-pressed={linked}
                         onClick={() => activeVideoId && void addGroupWithVideo(group.name, activeVideoId)}
                       >
-                        <span className="truncate">{group.name}</span>
-                        <span className="group-simple-item-meta">{linked ? "追加済み" : "追加"}</span>
+                        <span className="group-simple-item-label truncate">
+                          {isFavorite && <Icon name="star-solid" className="h-3.5 w-3.5 text-amber-500" />}
+                          <span className="truncate">{group.name}</span>
+                        </span>
+                        <span
+                          className={`group-simple-item-meta ${
+                            linked ? "group-simple-item-meta-linked" : "group-simple-item-meta-unlinked"
+                          }`}
+                        >
+                          {linked && <Icon name="check" className="h-3 w-3" />}
+                          {linked ? "追加済み" : "未追加"}
+                        </span>
                       </button>
                     );
                   })}
@@ -789,7 +899,10 @@ export function VideoPlayer() {
               value={isSeeking ? seekValue : currentTime}
               onMouseMove={(event) => handleSeekHover(event.clientX)}
               onMouseEnter={(event) => handleSeekHover(event.clientX)}
-              onMouseLeave={() => setSeekPreview((current) => ({ ...current, visible: false }))}
+              onMouseLeave={() => {
+                previewQueuedTargetRef.current = null;
+                setSeekPreview((current) => ({ ...current, visible: false }));
+              }}
               onPointerDown={() => {
                 const video = videoRef.current;
                 if (!video) {

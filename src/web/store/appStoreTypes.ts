@@ -12,7 +12,7 @@ export type PlaybackState = {
   status: PlaybackStatus;
 };
 
-export type LibrarySortKey = "name" | "duration";
+export type LibrarySortKey = "added" | "name" | "duration";
 export type SortOrder = "asc" | "desc";
 
 export type ActivityLogLevel = "info" | "success" | "error";
@@ -75,6 +75,7 @@ export type AppState = {
   saveResume: (videoId: string, seconds: number) => Promise<void>;
   addGroup: (name: string) => Promise<void>;
   addToGroup: (groupId: string, videoId: string) => Promise<void>;
+  removeVideoFromGroup: (groupId: string, videoId: string) => Promise<void>;
   removeGroup: (groupId: string) => Promise<void>;
   removeVideo: (videoId: string) => Promise<void>;
   clearAllVideos: () => Promise<void>;
@@ -82,8 +83,10 @@ export type AppState = {
   setVideoDuration: (videoId: string, durationSeconds: number) => Promise<void>;
   removeSelectedVideos: () => Promise<void>;
   lockSelectedVideos: () => Promise<void>;
+  toggleVideoLock: (videoId: string) => Promise<void>;
   removeSelectedGroups: () => Promise<void>;
   lockSelectedGroups: () => Promise<void>;
+  toggleGroupLock: (groupId: string) => Promise<void>;
   markPlaybackFailed: (videoId: string, reason: PlaybackFailureKind) => Promise<void>;
   renameVideo: (videoId: string, label: string) => Promise<void>;
   saveSettings: (settings: AppSettings) => Promise<void>;

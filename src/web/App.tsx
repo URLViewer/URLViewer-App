@@ -184,7 +184,7 @@ export function App() {
         <header className="topbar">
           <div className="flex items-center gap-2">
             <Icon name="play" className="h-5 w-5 text-teal-700" />
-            <span className="app-title">URL ビューア</span>
+            <span className="app-title">URLViewer</span>
           </div>
 
           <div className="flex items-center gap-2">

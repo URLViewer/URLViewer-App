@@ -10,6 +10,7 @@ import {
   executeRegistrationJobs,
   type RegistrationJob,
 } from "@web/store/registrationWorkflows";
+import { probeVideoDurationSeconds } from "@web/store/videoDurationProbe";
 import type { AppState, AppStoreGet, AppStoreSet } from "@web/store/appStoreTypes";
 
 type RegistrationActions = Pick<
@@ -84,10 +85,11 @@ export function createRegistrationActions(
         },
       });
       get().appendLog({ level: failedCount > 0 ? "error" : "success", scope: "validation", message: `URL登録完了: 成功 ${successCount}件 / 失敗 ${failedCount}件` });
+      void hydrateDurationsForAddedVideos(library, nextPreparedLibrary, get);
     },
 
     async runPluginInput(pluginId) {
-      const { pluginInput, settings, pendingValidations } = get();
+      const { pluginInput, settings, pendingValidations, library } = get();
       const value = pluginInput[pluginId]?.trim();
       if (!value) {
         set({ lastMessage: "プラグイン入力が空です。" });
@@ -150,7 +152,7 @@ export function createRegistrationActions(
         jobs,
         concurrency: settings.validationConcurrency,
         timeoutMs: settings.validationTimeoutMs,
-        initialLibrary: get().library,
+        initialLibrary: library,
         onJobStatus: (queueKey, status, message) => {
           set((state) => ({
             validationQueue: updateQueueItem(state.validationQueue, queueKey, {
@@ -177,6 +179,7 @@ export function createRegistrationActions(
         },
       });
       get().appendLog({ level: failedCount > 0 ? "error" : "success", scope: "plugins", message: `プラグイン登録完了: 成功 ${successCount}件 / 失敗 ${failedCount}件` });
+      void hydrateDurationsForAddedVideos(library, nextPreparedLibrary, get);
     },
 
     async validateAllPending() {
@@ -231,6 +234,7 @@ export function createRegistrationActions(
             },
           });
           get().appendLog({ level: failedJobs.length > 0 ? "error" : "success", scope: "validation", message: `再検証完了: 成功 ${successCount}件 / 失敗 ${failedJobs.length}件` });
+          void hydrateDurationsForAddedVideos(library, nextPreparedLibrary, get);
           return;
         }
 
@@ -284,6 +288,7 @@ export function createRegistrationActions(
         },
       });
       get().appendLog({ level: failedItems.length > 0 ? "error" : "success", scope: "validation", message: failedItems.length === 0 ? `検証完了: 成功 ${successCount}件` : `検証完了: 成功 ${successCount}件 / 失敗 ${failedItems.length}件` });
+      void hydrateDurationsForAddedVideos(library, nextPreparedLibrary, get);
     },
 
     async exportAliveUrls() {
@@ -302,4 +307,26 @@ export function createRegistrationActions(
       get().appendLog({ level: "success", scope: "export", message: `${result.count}件のURLをエクスポートしました。`, detail: result.path });
     },
   };
+}
+
+async function hydrateDurationsForAddedVideos(
+  previousLibrary: AppState["library"],
+  nextLibrary: AppState["library"],
+  get: AppStoreGet,
+): Promise<void> {
+  const existingIds = new Set(previousLibrary.videos.map((video) => video.id));
+  const addedVideos = nextLibrary.videos.filter(
+    (video) => !existingIds.has(video.id) && !Number.isFinite(video.durationSeconds),
+  );
+  if (addedVideos.length === 0) {
+    return;
+  }
+
+  for (const video of addedVideos) {
+    const duration = await probeVideoDurationSeconds(video.sourceUrl);
+    if (!Number.isFinite(duration)) {
+      continue;
+    }
+    await get().setVideoDuration(video.id, duration as number);
+  }
 }

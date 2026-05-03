@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@web/components/Icon";
 import { sortVideos } from "@web/features/library/sortVideos";
+import { VideoListItem } from "@web/features/library/VideoListItem";
 import { useAppStore } from "@web/store/appStore";
 
 const FLOATING_CLOSE_MS = 140;
@@ -9,7 +10,6 @@ export function LibraryPanel() {
   const [deleteTargetVideoId, setDeleteTargetVideoId] = useState<string | null>(null);
   const [deleteDialogClosing, setDeleteDialogClosing] = useState(false);
   const [isSelectionDeleteDialogOpen, setSelectionDeleteDialogOpen] = useState(false);
-  const [draftLabels, setDraftLabels] = useState<Record<string, string>>({});
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const videos = useAppStore((state) => state.library.videos);
@@ -33,6 +33,7 @@ export function LibraryPanel() {
   const clearSelectedVideos = useAppStore((state) => state.clearSelectedVideos);
   const removeSelectedVideos = useAppStore((state) => state.removeSelectedVideos);
   const lockSelectedVideos = useAppStore((state) => state.lockSelectedVideos);
+  const toggleVideoLock = useAppStore((state) => state.toggleVideoLock);
 
   const groupNamesByVideoId = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -59,34 +60,6 @@ export function LibraryPanel() {
       }
     };
   }, []);
-
-  const commitLabelEdit = async (videoId: string) => {
-    const draft = draftLabels[videoId];
-    if (draft === undefined) {
-      return;
-    }
-
-    const target = videos.find((video) => video.id === videoId);
-    if (!target) {
-      return;
-    }
-
-    try {
-      const nextLabel = draft.trim();
-      if (nextLabel.length > 0 && nextLabel !== target.label) {
-        await renameVideo(videoId, nextLabel);
-      }
-    } finally {
-      setDraftLabels((current) => {
-        if (!(videoId in current)) {
-          return current;
-        }
-        const next = { ...current };
-        delete next[videoId];
-        return next;
-      });
-    }
-  };
 
   const openDeleteDialog = (videoId: string) => {
     if (closeTimerRef.current) {
@@ -123,35 +96,46 @@ export function LibraryPanel() {
 
   return (
     <section className="panel-shell">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="panel-title">ライブラリ</span>
-        <div className="flex items-center gap-2">
-          <span className="panel-count">{videos.length}</span>
-          <div className="sort-switch" role="group" aria-label="並び替えキー">
-            <button
-              className={`sort-switch-btn ${librarySortKey === "name" ? "sort-switch-btn-active" : ""}`}
-              title="動画名で並び替え"
-              onClick={() => setLibrarySort("name")}
-            >
-              名前
-            </button>
-            <button
-              className={`sort-switch-btn ${librarySortKey === "duration" ? "sort-switch-btn-active" : ""}`}
-              title="動画長さで並び替え"
-              onClick={() => setLibrarySort("duration")}
-            >
-              長さ
-            </button>
+      <div className="mb-2 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="panel-title whitespace-nowrap">ライブラリ</span>
+            <span className="panel-count">{videos.length}</span>
           </div>
-          <button className="icon-btn-sm" title="昇順/降順" onClick={toggleLibrarySortOrder}>
-            <Icon name={librarySortOrder === "asc" ? "arrow-up" : "arrow-down"} className="h-4 w-4" />
-          </button>
           <button
             className={`panel-text-btn ${librarySelectionMode ? "panel-text-btn-active" : ""}`}
             title="選択"
             onClick={() => setLibrarySelectionMode(!librarySelectionMode)}
           >
             選択
+          </button>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="library-sort-shell" role="group" aria-label="並び替えキー">
+            <button
+              className={`library-sort-chip ${librarySortKey === "added" ? "library-sort-chip-active" : ""}`}
+              title="追加順で並び替え"
+              onClick={() => setLibrarySort("added")}
+            >
+              追加順
+            </button>
+            <button
+              className={`library-sort-chip ${librarySortKey === "name" ? "library-sort-chip-active" : ""}`}
+              title="動画名で並び替え"
+              onClick={() => setLibrarySort("name")}
+            >
+              名前
+            </button>
+            <button
+              className={`library-sort-chip ${librarySortKey === "duration" ? "library-sort-chip-active" : ""}`}
+              title="動画長さで並び替え"
+              onClick={() => setLibrarySort("duration")}
+            >
+              長さ
+            </button>
+          </div>
+          <button className="library-sort-order-btn" title="昇順/降順" onClick={toggleLibrarySortOrder}>
+            <Icon name={librarySortOrder === "asc" ? "arrow-up" : "arrow-down"} className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -177,109 +161,24 @@ export function LibraryPanel() {
         {sortedVideos.map((video) => {
           const isActive = tabs.activeVideoId === video.id;
           const isPlaying = isActive && playback.videoId === video.id && playback.status === "playing";
-          const playbackIcon = isPlaying ? "pause" : "play";
           const groupNames = groupNamesByVideoId.get(video.id) ?? [];
           const isSelected = selectedSet.has(video.id);
 
           return (
-            <article
+            <VideoListItem
               key={video.id}
-              className={`item-shell item-shell-video-simple ${isActive ? "item-shell-active-playing" : ""} ${
-                isSelected ? "item-shell-selected" : ""
-              } ${video.locked ? "item-shell-locked" : ""}`}
-              onClick={() => {
-                if (!librarySelectionMode) {
-                  return;
-                }
-                toggleVideoSelection(video.id);
-              }}
-            >
-              <input
-                className="panel-input w-full"
-                value={draftLabels[video.id] ?? video.label}
-                disabled={librarySelectionMode}
-                onChange={(event) => {
-                  const { value } = event.target;
-                  setDraftLabels((current) => ({
-                    ...current,
-                    [video.id]: value,
-                  }));
-                }}
-                onClick={(event) => event.stopPropagation()}
-                onBlur={() => void commitLabelEdit(video.id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.currentTarget.blur();
-                    return;
-                  }
-                  if (event.key === "Escape") {
-                    setDraftLabels((current) => {
-                      if (!(video.id in current)) {
-                        return current;
-                      }
-                      const next = { ...current };
-                      delete next[video.id];
-                      return next;
-                    });
-                    event.currentTarget.blur();
-                  }
-                }}
-              />
-
-              <button
-                className="icon-btn-sm"
-                title={isPlaying ? "停止" : "再生"}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void handlePlaybackButton(video.id);
-                }}
-              >
-                <Icon name={playbackIcon} className="h-4 w-4" />
-              </button>
-
-              <button
-                className="icon-btn-sm"
-                title={video.locked ? "ロック中" : "ロック"}
-                onClick={(event) => event.stopPropagation()}
-                disabled
-              >
-                <Icon name={video.locked ? "lock" : "unlock"} className="h-4 w-4" />
-              </button>
-
-              {!librarySelectionMode && (
-                <button
-                  className="icon-btn-sm icon-btn-danger"
-                  title="削除"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    openDeleteDialog(video.id);
-                  }}
-                  disabled={video.locked}
-                >
-                  <Icon name="trash" className="h-4 w-4" />
-                </button>
-              )}
-
-              <div className="video-group-footer">
-                <div className="flex items-center gap-2">
-                  {video.locked && <span className="video-group-badge">ロック中</span>}
-                  {typeof video.durationSeconds === "number" && (
-                    <span className="video-group-badge">{Math.floor(video.durationSeconds)}秒</span>
-                  )}
-                </div>
-                {groupNames.length > 0 ? (
-                  <div className="video-group-badge-row">
-                    {groupNames.map((name) => (
-                      <span key={`${video.id}-${name}`} className="video-group-badge" title={name}>
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="video-group-empty">グループ未追加</span>
-                )}
-              </div>
-            </article>
+              video={video}
+              isActive={isActive}
+              isPlaying={isPlaying}
+              selectionMode={librarySelectionMode}
+              isSelected={isSelected}
+              groupNames={groupNames}
+              onSelect={toggleVideoSelection}
+              onPlayPause={(videoId) => void handlePlaybackButton(videoId)}
+              onToggleLock={(videoId) => void toggleVideoLock(videoId)}
+              onDelete={openDeleteDialog}
+              onRename={(videoId, label) => renameVideo(videoId, label)}
+            />
           );
         })}
 

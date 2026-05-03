@@ -156,13 +156,30 @@ export function buildLibraryForAddGroupWithVideo(
   const existing = findGroupByName(library.groups, normalized);
   const nextGroups = existing
     ? library.groups.map((group) =>
-        group.id !== existing.id || group.videoIds.includes(videoId)
+        group.id !== existing.id
           ? group
-          : { ...group, videoIds: [...group.videoIds, videoId] },
+          : group.videoIds.includes(videoId)
+            ? { ...group, videoIds: group.videoIds.filter((id) => id !== videoId) }
+            : { ...group, videoIds: [...group.videoIds, videoId] },
       )
     : [...library.groups, { id: crypto.randomUUID(), name: normalized, videoIds: [videoId], locked: false }];
 
   return { nextLibrary: { ...library, groups: nextGroups } };
+}
+
+export function buildLibraryForRemoveVideoFromGroup(
+  library: LibraryState,
+  groupId: string,
+  videoId: string,
+): LibraryState {
+  return {
+    ...library,
+    groups: library.groups.map((group) =>
+      group.id !== groupId
+        ? group
+        : { ...group, videoIds: group.videoIds.filter((id) => id !== videoId) },
+    ),
+  };
 }
 
 export function buildLibraryForAddToGroup(
@@ -283,6 +300,20 @@ export function buildLibraryForLockVideos(library: LibraryState, videoIds: strin
   };
 }
 
+export function buildLibraryForToggleVideoLock(library: LibraryState, videoId: string): LibraryState {
+  const target = library.videos.find((video) => video.id === videoId);
+  if (!target) {
+    return library;
+  }
+
+  return {
+    ...library,
+    videos: library.videos.map((video) =>
+      video.id === videoId ? { ...video, locked: !video.locked } : video,
+    ),
+  };
+}
+
 export function buildLibraryForLockGroups(library: LibraryState, groupIds: string[]): LibraryState {
   const lockSet = new Set(groupIds);
   return {
@@ -290,6 +321,21 @@ export function buildLibraryForLockGroups(library: LibraryState, groupIds: strin
     groups: library.groups.map((group) =>
       lockSet.has(group.id) ? { ...group, locked: true } : group,
     ),
+  };
+}
+
+export function buildLibraryForToggleGroupLock(library: LibraryState, groupId: string): LibraryState {
+  return {
+    ...library,
+    groups: library.groups.map((group) => {
+      if (group.id !== groupId) {
+        return group;
+      }
+      if (group.builtin === "favorites") {
+        return group;
+      }
+      return { ...group, locked: !group.locked };
+    }),
   };
 }
 

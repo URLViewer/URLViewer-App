@@ -4,6 +4,10 @@ import type { LibrarySortKey, SortOrder } from "@web/store/appStoreTypes";
 const NAME_COLLATOR = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
 
 export function sortVideos(videos: VideoItem[], key: LibrarySortKey, order: SortOrder): VideoItem[] {
+  if (key === "added") {
+    return order === "asc" ? [...videos] : [...videos].reverse();
+  }
+
   const next = [...videos];
   next.sort((a, b) => {
     if (key === "name") {
