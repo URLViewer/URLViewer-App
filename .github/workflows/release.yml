@@ -12,6 +12,7 @@ permissions:
 jobs:
   release-windows:
     runs-on: windows-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -34,26 +35,15 @@ jobs:
         run: |
           echo "event_name=${GITHUB_EVENT_NAME}"
           echo "ref=${GITHUB_REF}"
-
-      - name: Validate Release Token
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        env:
-          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
-        run: |
-          if [ -z "$RELEASE_PAT" ]; then
-            echo "RELEASE_PAT secret is not set."
-            echo "Please create a fine-grained PAT and register it as repository secret RELEASE_PAT."
-            exit 1
-          fi
+          echo "sha=${GITHUB_SHA}"
 
       - name: Build And Publish
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GH_TOKEN: ${{ github.token }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: yarn dist:publish
 
-      - name: Build Only (Manual Dispatch)
+      - name: Build Only
         if: github.event_name == 'workflow_dispatch'
         run: yarn dist
