@@ -1,7 +1,7 @@
 {
   "name": "url-viewer",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "URLを動画ソースとして登録・管理する Electron アプリ",
   "author": "URLViewer",
   "packageManager": "yarn@4.13.0",
