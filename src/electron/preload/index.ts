@@ -5,10 +5,12 @@ import type {
   GitInstallPayload,
   InstallPluginResult,
   LibraryState,
+  NetworkHeaderOverrideRule,
   PluginListItem,
   RegisterVideoSourceInput,
   RegisterVideoSourceResult,
   ResumePayload,
+  VideoPlaybackTraceResult,
   VideoSourceValidateInput,
   VideoSourceValidateResult,
 } from "@shared/types";
@@ -27,10 +29,18 @@ const api = {
   videoSource: {
     validate: (payload: VideoSourceValidateInput): Promise<VideoSourceValidateResult> =>
       ipcRenderer.invoke("videoSource:validate", payload),
+    getPlaybackTrace: (url: string): Promise<VideoPlaybackTraceResult> =>
+      ipcRenderer.invoke("videoSource:getPlaybackTrace", { url }),
     register: (payload: RegisterVideoSourceInput): Promise<RegisterVideoSourceResult> =>
       ipcRenderer.invoke("videoSource:register", payload),
     exportAlive: (): Promise<ExportAliveUrlsResult> =>
       ipcRenderer.invoke("videoSource:exportAlive"),
+  },
+  network: {
+    acquireHeaderOverride: (rule: NetworkHeaderOverrideRule): Promise<{ ok: true }> =>
+      ipcRenderer.invoke("network:acquireHeaderOverride", { rule }),
+    releaseHeaderOverride: (id: string): Promise<{ ok: true }> =>
+      ipcRenderer.invoke("network:releaseHeaderOverride", { id }),
   },
   plugins: {
     list: (): Promise<PluginListItem[]> => ipcRenderer.invoke("plugins:list"),

@@ -1,8 +1,13 @@
-import { app, BrowserWindow, Menu } from "electron";
+import { app, BrowserWindow, Menu, type Session } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { registerIpcHandlers, cleanupIpcHandlers } from "@electron/ipc/handlers";
 import { PluginManager } from "@electron/services/pluginManager";
+import { applyNetworkHeaderOverrides } from "@electron/services/networkHeaderOverrideManager";
+import {
+  recordPlaybackTraceCompleted,
+  recordPlaybackTraceFailed,
+} from "@electron/services/videoNetworkTrace";
 import { AppStoreService } from "@electron/store/appStore";
 import { createUpdateProvider } from "@electron/updater/provider";
 
@@ -10,6 +15,8 @@ const currentDir = __dirname;
 const store = new AppStoreService();
 const pluginManager = new PluginManager(store);
 const updateProvider = createUpdateProvider();
+let headerOverrideHookInstalled = false;
+let twitterTraceHookInstalled = false;
 
 function resolveWindowIconPath(): string | undefined {
   const candidates = [
@@ -46,6 +53,9 @@ async function createWindow(): Promise<void> {
     },
   });
 
+  installHeaderOverrideHook(mainWindow.webContents.session);
+  installTwitterVideoTraceHook(mainWindow.webContents.session);
+
   if (!devServerUrl) {
     mainWindow.setMenuBarVisibility(false);
   }
@@ -77,6 +87,63 @@ async function createWindow(): Promise<void> {
 
   const updateStatus = await updateProvider.checkForUpdates();
   console.info(`[updater] enabled=${updateStatus.enabled} message=${updateStatus.message}`);
+}
+
+function installHeaderOverrideHook(session: Session): void {
+  if (headerOverrideHookInstalled) {
+    return;
+  }
+  headerOverrideHookInstalled = true;
+
+  session.webRequest.onBeforeSendHeaders(
+    { urls: ["*://*/*"] },
+    (details, callback) => {
+      const headers = applyNetworkHeaderOverrides(
+        details.url,
+        details.requestHeaders as Record<string, string | string[]>,
+      );
+      callback({ requestHeaders: headers });
+    },
+  );
+}
+
+function installTwitterVideoTraceHook(session: Session): void {
+  if (twitterTraceHookInstalled) {
+    return;
+  }
+  twitterTraceHookInstalled = true;
+
+  session.webRequest.onCompleted(
+    {
+      urls: ["https://video.twimg.com/*"],
+    },
+    (details) => {
+      recordPlaybackTraceCompleted({
+        url: details.url,
+        method: details.method,
+        statusCode: details.statusCode,
+        resourceType: details.resourceType,
+        fromCache: details.fromCache,
+        referrer: details.referrer,
+        responseHeaders: details.responseHeaders,
+      });
+    },
+  );
+
+  session.webRequest.onErrorOccurred(
+    {
+      urls: ["https://video.twimg.com/*"],
+    },
+    (details) => {
+      recordPlaybackTraceFailed({
+        url: details.url,
+        method: details.method,
+        error: details.error,
+        resourceType: details.resourceType,
+        referrer: details.referrer,
+      });
+    },
+  );
 }
 
 app.whenReady().then(async () => {

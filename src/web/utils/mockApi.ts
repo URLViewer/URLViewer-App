@@ -85,8 +85,19 @@ export function createBrowserMockApi(): Window["m3u8Viewer"] {
     },
     videoSource: {
       validate: async (payload) => validate(payload),
+      getPlaybackTrace: async () => ({ status: "not-found" as const }),
       register: async (payload) => register(payload),
       exportAlive: async () => exportAlive(),
+    },
+    network: {
+      acquireHeaderOverride: async (rule) => {
+        void rule;
+        return { ok: true as const };
+      },
+      releaseHeaderOverride: async (id) => {
+        void id;
+        return { ok: true as const };
+      },
     },
     plugins: {
       list: async () => pluginsState,

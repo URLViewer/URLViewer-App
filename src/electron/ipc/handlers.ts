@@ -4,6 +4,9 @@ import { readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import {
   appSettingsSchema,
+  networkHeaderOverridePayloadSchema,
+  networkHeaderOverrideReleasePayloadSchema,
+  playbackTraceLookupSchema,
   gitInstallPayloadSchema,
   libraryStateSchema,
   pluginEnableSchema,
@@ -17,6 +20,11 @@ import type { RegisterVideoSourceResult, VideoItem } from "@shared/types";
 import {
   validateVideoSourceUrl,
 } from "@electron/services/videoSourceResolver";
+import { getPlaybackTrace } from "@electron/services/videoNetworkTrace";
+import {
+  acquireNetworkHeaderOverride,
+  releaseNetworkHeaderOverride,
+} from "@electron/services/networkHeaderOverrideManager";
 import { AppStoreService } from "@electron/store/appStore";
 import { PluginManager } from "@electron/services/pluginManager";
 
@@ -51,11 +59,32 @@ export function registerIpcHandlers(store: AppStoreService, pluginManager: Plugi
     return validateVideoSourceUrl(parsed.url, parsed.timeoutMs);
   });
 
+  ipcMain.handle("videoSource:getPlaybackTrace", (_event, payload) => {
+    const parsed = playbackTraceLookupSchema.parse(payload);
+    const trace = getPlaybackTrace(parsed.url);
+    if (!trace) {
+      return { status: "not-found" as const };
+    }
+    return { status: "found" as const, trace };
+  });
+
+  ipcMain.handle("network:acquireHeaderOverride", (_event, payload) => {
+    const parsed = networkHeaderOverridePayloadSchema.parse(payload);
+    acquireNetworkHeaderOverride(parsed.rule);
+    return { ok: true as const };
+  });
+
+  ipcMain.handle("network:releaseHeaderOverride", (_event, payload) => {
+    const parsed = networkHeaderOverrideReleasePayloadSchema.parse(payload);
+    releaseNetworkHeaderOverride(parsed.id);
+    return { ok: true as const };
+  });
+
   ipcMain.handle("videoSource:register", async (_event, payload): Promise<RegisterVideoSourceResult> => {
     const parsed = registerVideoSourceSchema.parse(payload);
     const validated = await validateVideoSourceUrl(parsed.url, parsed.timeoutMs);
     if (validated.status !== "valid") {
-      return { status: "rejected", reason: validated.reason };
+      return { status: "rejected", reason: validated.reason, detail: validated.detail };
     }
     const normalizedUrl = validated.normalizedUrl;
 
@@ -246,6 +275,9 @@ export function cleanupIpcHandlers(): void {
   ipcMain.removeHandler("library:get");
   ipcMain.removeHandler("library:save");
   ipcMain.removeHandler("videoSource:validate");
+  ipcMain.removeHandler("videoSource:getPlaybackTrace");
+  ipcMain.removeHandler("network:acquireHeaderOverride");
+  ipcMain.removeHandler("network:releaseHeaderOverride");
   ipcMain.removeHandler("videoSource:register");
   ipcMain.removeHandler("plugins:list");
   ipcMain.removeHandler("plugins:panels");

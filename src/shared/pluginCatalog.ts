@@ -32,11 +32,35 @@ export const BUILTIN_HLS_PLAYBACK_MANIFEST: PluginManifestV1 = {
   license: "MIT",
 };
 
+export const BUILTIN_TWITTER_VIDEO_ACCESS_MANIFEST: PluginManifestV1 = {
+  id: "builtin.playback.twitter-video-access",
+  name: "Twitter Video Access",
+  version: "1.0.0",
+  apiVersion: "1.0.0",
+  entry: "__renderer__/builtin/twitter-video-access",
+  capabilities: ["playback"],
+  description: {
+    summary: "video.twimg.com 向けのアクセスヘッダー補正を行います。",
+    detailed:
+      "X/Twitter動画CDN(video.twimg.com)で再生時に403を回避するため、Referer/Origin/Accept/User-Agent/Rangeを補正します。対象は video.twimg.com のみです。",
+  },
+  author: { name: "M3u8Viewer Team" },
+  license: "MIT",
+};
+
 export const BUILTIN_PLUGIN_SEEDS: PluginListItem[] = [
+  {
+    id: BUILTIN_TWITTER_VIDEO_ACCESS_MANIFEST.id,
+    enabled: true,
+    order: 0,
+    sourceType: "builtin",
+    sourceRef: "renderer",
+    manifest: BUILTIN_TWITTER_VIDEO_ACCESS_MANIFEST,
+  },
   {
     id: BUILTIN_HTML5_PLAYBACK_MANIFEST.id,
     enabled: true,
-    order: 0,
+    order: 1,
     sourceType: "builtin",
     sourceRef: "renderer",
     manifest: BUILTIN_HTML5_PLAYBACK_MANIFEST,
@@ -44,7 +68,7 @@ export const BUILTIN_PLUGIN_SEEDS: PluginListItem[] = [
   {
     id: BUILTIN_HLS_PLAYBACK_MANIFEST.id,
     enabled: true,
-    order: 1,
+    order: 2,
     sourceType: "builtin",
     sourceRef: "renderer",
     manifest: BUILTIN_HLS_PLAYBACK_MANIFEST,

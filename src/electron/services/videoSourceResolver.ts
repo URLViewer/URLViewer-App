@@ -15,11 +15,11 @@ export async function validateVideoSourceUrl(
 ): Promise<VideoSourceValidateResult> {
   const normalizedUrl = normalizeVideoSourceUrl(url);
   if (!normalizedUrl) {
-    return { status: "invalid", reason: "invalid-url" };
+    return { status: "invalid", reason: "invalid-url", detail: "invalid URL format" };
   }
-  const reachable = await probeUrlReachability(normalizedUrl, timeoutMs);
-  if (!reachable) {
-    return { status: "invalid", reason: "network" };
+  const probe = await probeUrlReachability(normalizedUrl, timeoutMs);
+  if (!probe.reachable) {
+    return { status: "invalid", reason: "network", detail: probe.detail };
   }
 
   return {
@@ -29,10 +29,12 @@ export async function validateVideoSourceUrl(
   };
 }
 
-async function probeUrlReachability(url: string, timeoutMs: number): Promise<boolean> {
+async function probeUrlReachability(
+  url: string,
+  timeoutMs: number,
+): Promise<{ reachable: boolean; detail: string }> {
   const boundedTimeoutMs = Math.max(1000, timeoutMs);
-
-  const tryHead = await probeOnce(url, boundedTimeoutMs, {
+  const head = await probeOnce(url, boundedTimeoutMs, {
     method: "HEAD",
     headers: {
       Accept: "*/*",
@@ -41,13 +43,13 @@ async function probeUrlReachability(url: string, timeoutMs: number): Promise<boo
     },
   });
 
-  if (tryHead === "ok") {
-    return true;
+  if (head.kind === "ok") {
+    return { reachable: true, detail: `strategy=head ${formatProbeResult("HEAD", head)}` };
   }
 
   // 一部サーバーは HEAD を拒否するため GET でフォールバックする。
-  if (tryHead === "method-not-allowed") {
-    const tryGet = await probeOnce(url, boundedTimeoutMs, {
+  if (head.kind === "method-not-allowed") {
+    const get = await probeOnce(url, boundedTimeoutMs, {
       method: "GET",
       headers: {
         Accept: "*/*",
@@ -56,13 +58,28 @@ async function probeUrlReachability(url: string, timeoutMs: number): Promise<boo
         Pragma: "no-cache",
       },
     });
-    return tryGet === "ok";
+    if (get.kind === "ok") {
+      return {
+        reachable: true,
+        detail: `strategy=head-fallback HEAD status=${head.status} -> ${formatProbeResult("GET", get)}`,
+      };
+    }
+    return {
+      reachable: false,
+      detail: `strategy=head-fallback HEAD status=${head.status} -> ${formatProbeResult("GET", get)}`,
+    };
   }
 
-  return false;
+  return {
+    reachable: false,
+    detail: `strategy=head ${formatProbeResult("HEAD", head)}`,
+  };
 }
 
-type ProbeResult = "ok" | "method-not-allowed" | "failed";
+type ProbeResult =
+  | { kind: "ok"; status: number }
+  | { kind: "method-not-allowed"; status: number }
+  | { kind: "failed"; status?: number; error?: string };
 
 async function probeOnce(
   url: string,
@@ -79,18 +96,40 @@ async function probeOnce(
     });
 
     if (response.status >= 200 && response.status < 300) {
-      return "ok";
+      return { kind: "ok", status: response.status };
     }
     if (response.status === 304) {
-      return "ok";
+      return { kind: "ok", status: response.status };
     }
     if (response.status === 405 || response.status === 501) {
-      return "method-not-allowed";
+      return { kind: "method-not-allowed", status: response.status };
     }
-    return "failed";
-  } catch {
-    return "failed";
+    return { kind: "failed", status: response.status };
+  } catch (error) {
+    if (error instanceof Error) {
+      return {
+        kind: "failed",
+        error: error.name === "AbortError" ? `timeout(${timeoutMs}ms)` : error.message,
+      };
+    }
+    return { kind: "failed", error: "unknown-error" };
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function formatProbeResult(method: "HEAD" | "GET", result: ProbeResult): string {
+  if (result.kind === "ok") {
+    return `${method} status=${result.status}`;
+  }
+  if (result.kind === "method-not-allowed") {
+    return `${method} status=${result.status} (method-not-allowed)`;
+  }
+  if (typeof result.status === "number") {
+    return `${method} status=${result.status}`;
+  }
+  if (result.error) {
+    return `${method} error=${result.error}`;
+  }
+  return `${method} failed`;
 }

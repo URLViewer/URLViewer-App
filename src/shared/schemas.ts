@@ -127,6 +127,10 @@ export const validateVideoSourceSchema = z.object({
   timeoutMs: z.number().int().min(1000).max(20000),
 });
 
+export const playbackTraceLookupSchema = z.object({
+  url: z.string().url(),
+});
+
 export const resumePayloadSchema = z.object({
   videoId: z.string().min(1),
   seconds: z.number().min(0),
@@ -155,4 +159,19 @@ export const pluginResolveInputSchema = z.object({
   pluginId: z.string().min(1),
   input: z.string(),
   timeoutMs: z.number().int().min(1000).max(20000),
+});
+
+export const networkHeaderOverrideRuleSchema = z.object({
+  id: z.string().min(1),
+  hosts: z.array(z.string().min(1)).min(1),
+  headers: z.record(z.string().min(1), z.string()),
+  preserveRange: z.boolean().optional(),
+});
+
+export const networkHeaderOverridePayloadSchema = z.object({
+  rule: networkHeaderOverrideRuleSchema,
+});
+
+export const networkHeaderOverrideReleasePayloadSchema = z.object({
+  id: z.string().min(1),
 });

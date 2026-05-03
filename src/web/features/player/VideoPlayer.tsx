@@ -35,6 +35,81 @@ function messageForPlaybackFailure(failure: PlaybackFailure): string {
   return "不明なエラー: 再生に失敗しました。";
 }
 
+function detailForPlaybackFailure(
+  failure: PlaybackFailure,
+  sourceUrl: string,
+  mediaState?: {
+    currentSrc?: string;
+    readyState?: number;
+    networkState?: number;
+  },
+): string | undefined {
+  const maybeDetail = (failure as PlaybackFailure & { detail?: string }).detail?.trim();
+  const mediaLine = mediaState
+    ? `media currentSrc=${mediaState.currentSrc ?? ""} readyState=${mediaState.readyState ?? -1} networkState=${mediaState.networkState ?? -1}`
+    : "";
+  if (maybeDetail) {
+    return ["source=" + sourceUrl, mediaLine, maybeDetail].filter(Boolean).join("\n");
+  }
+  return ["source=" + sourceUrl, mediaLine].filter(Boolean).join("\n");
+}
+
+async function enrichPlaybackFailureDetail(
+  sourceUrl: string,
+  baseDetail: string | undefined,
+  timeoutMs: number,
+): Promise<string | undefined> {
+  const lines: string[] = [];
+  if (baseDetail) {
+    lines.push(baseDetail);
+  }
+  try {
+    const probe = await window.m3u8Viewer.videoSource.validate({
+      url: sourceUrl,
+      timeoutMs: Math.max(1000, Math.min(timeoutMs, 8000)),
+    });
+    const probeLine =
+      probe.status === "valid"
+        ? `probe status=valid normalized=${probe.normalizedUrl}`
+        : `probe status=invalid reason=${probe.reason}${probe.detail ? ` detail=${probe.detail}` : ""}`;
+    if (!lines.some((line) => line.includes("probe status="))) {
+      lines.push(probeLine);
+    }
+  } catch (error) {
+    const probeLine = `probe status=error message=${error instanceof Error ? error.message : "unknown-error"}`;
+    if (!lines.some((line) => line.includes("probe status="))) {
+      lines.push(probeLine);
+    }
+  }
+
+  try {
+    const traceResult = await window.m3u8Viewer.videoSource.getPlaybackTrace(sourceUrl);
+    if (traceResult.status === "found" && !lines.some((line) => line.includes("trace phase="))) {
+      const trace = traceResult.trace;
+      const statusPart = typeof trace.statusCode === "number" ? ` status=${trace.statusCode}` : "";
+      const errorPart = trace.error ? ` error=${trace.error}` : "";
+      const cachePart = typeof trace.fromCache === "boolean" ? ` cache=${trace.fromCache}` : "";
+      const resourcePart = trace.resourceType ? ` resource=${trace.resourceType}` : "";
+      const referrerPart = trace.referrer ? ` referrer=${trace.referrer}` : "";
+      const headersPart = trace.responseHeaders
+        ? ` headers=${Object.entries(trace.responseHeaders)
+            .slice(0, 8)
+            .map(([key, value]) => `${key}:${value}`)
+            .join(" | ")}`
+        : "";
+      lines.push(
+        `trace phase=${trace.phase} method=${trace.method}${statusPart}${errorPart}${cachePart}${resourcePart}${referrerPart} at=${trace.capturedAt}${headersPart}`,
+      );
+    }
+  } catch (error) {
+    if (!lines.some((line) => line.includes("trace phase="))) {
+      lines.push(`trace error=${error instanceof Error ? error.message : "unknown-error"}`);
+    }
+  }
+
+  return lines.length > 0 ? lines.join("\n") : undefined;
+}
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) {
     return "0:00";
@@ -57,6 +132,7 @@ export function VideoPlayer() {
   const groups = useAppStore((state) => state.library.groups);
   const addGroupWithVideo = useAppStore((state) => state.addGroupWithVideo);
   const setVideoDuration = useAppStore((state) => state.setVideoDuration);
+  const validationTimeoutMs = useAppStore((state) => state.settings.validationTimeoutMs);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -664,7 +740,19 @@ export function VideoPlayer() {
         videoId: videoIdSnapshot,
         message: messageForPlaybackFailure(failure),
       });
-      void markPlaybackFailed(videoIdSnapshot, failure.kind);
+      void (async () => {
+        const detail = detailForPlaybackFailure(failure, sourceUrl, {
+          currentSrc: video.currentSrc,
+          readyState: video.readyState,
+          networkState: video.networkState,
+        });
+        const enriched = await enrichPlaybackFailureDetail(
+          sourceUrl,
+          detail,
+          validationTimeoutMs,
+        );
+        await markPlaybackFailed(videoIdSnapshot, failure.kind, enriched);
+      })();
     };
 
     video.addEventListener("loadedmetadata", onLoadedMetadata);
@@ -706,6 +794,7 @@ export function VideoPlayer() {
     activeVideoId,
     markPlaybackFailed,
     plugins,
+    validationTimeoutMs,
     saveResume,
     setPlaybackState,
     setVideoDuration,

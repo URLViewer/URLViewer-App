@@ -8,6 +8,7 @@ import {
 } from "@web/store/validationHelpers";
 import {
   executeRegistrationJobs,
+  type FailedRegistrationJob,
   type RegistrationJob,
 } from "@web/store/registrationWorkflows";
 import { probeVideoDurationSeconds } from "@web/store/videoDurationProbe";
@@ -84,7 +85,13 @@ export function createRegistrationActions(
           active: false,
         },
       });
-      get().appendLog({ level: failedCount > 0 ? "error" : "success", scope: "validation", message: `URL登録完了: 成功 ${successCount}件 / 失敗 ${failedCount}件` });
+      const summary = `URL登録完了: 成功 ${successCount}件 / 失敗 ${failedCount}件`;
+      get().appendLog({
+        level: failedCount > 0 ? "error" : "success",
+        scope: "validation",
+        message: summary,
+        detail: failedCount > 0 ? formatFailedRegistrationDetail(failedJobs) : undefined,
+      });
       void hydrateDurationsForAddedVideos(library, nextPreparedLibrary, get);
     },
 
@@ -178,7 +185,13 @@ export function createRegistrationActions(
           active: false,
         },
       });
-      get().appendLog({ level: failedCount > 0 ? "error" : "success", scope: "plugins", message: `プラグイン登録完了: 成功 ${successCount}件 / 失敗 ${failedCount}件` });
+      const summary = `プラグイン登録完了: 成功 ${successCount}件 / 失敗 ${failedCount}件`;
+      get().appendLog({
+        level: failedCount > 0 ? "error" : "success",
+        scope: "plugins",
+        message: summary,
+        detail: failedCount > 0 ? formatFailedRegistrationDetail(failedJobs) : undefined,
+      });
       void hydrateDurationsForAddedVideos(library, nextPreparedLibrary, get);
     },
 
@@ -233,7 +246,13 @@ export function createRegistrationActions(
               active: false,
             },
           });
-          get().appendLog({ level: failedJobs.length > 0 ? "error" : "success", scope: "validation", message: `再検証完了: 成功 ${successCount}件 / 失敗 ${failedJobs.length}件` });
+          const summary = `再検証完了: 成功 ${successCount}件 / 失敗 ${failedJobs.length}件`;
+          get().appendLog({
+            level: failedJobs.length > 0 ? "error" : "success",
+            scope: "validation",
+            message: summary,
+            detail: failedJobs.length > 0 ? formatFailedRegistrationDetail(failedJobs) : undefined,
+          });
           void hydrateDurationsForAddedVideos(library, nextPreparedLibrary, get);
           return;
         }
@@ -287,7 +306,16 @@ export function createRegistrationActions(
           active: false,
         },
       });
-      get().appendLog({ level: failedItems.length > 0 ? "error" : "success", scope: "validation", message: failedItems.length === 0 ? `検証完了: 成功 ${successCount}件` : `検証完了: 成功 ${successCount}件 / 失敗 ${failedItems.length}件` });
+      const summary =
+        failedItems.length === 0
+          ? `検証完了: 成功 ${successCount}件`
+          : `検証完了: 成功 ${successCount}件 / 失敗 ${failedItems.length}件`;
+      get().appendLog({
+        level: failedItems.length > 0 ? "error" : "success",
+        scope: "validation",
+        message: summary,
+        detail: failedItems.length > 0 ? formatFailedRegistrationDetail(failedJobs) : undefined,
+      });
       void hydrateDurationsForAddedVideos(library, nextPreparedLibrary, get);
     },
 
@@ -307,6 +335,15 @@ export function createRegistrationActions(
       get().appendLog({ level: "success", scope: "export", message: `${result.count}件のURLをエクスポートしました。`, detail: result.path });
     },
   };
+}
+
+function formatFailedRegistrationDetail(failedJobs: FailedRegistrationJob[]): string {
+  const lines = failedJobs.map((job, index) => {
+    const reason = job.reason === "network" ? "network" : "invalid-url";
+    const detailLine = job.detail ? `\n   detail: ${job.detail}` : "";
+    return `${index + 1}. [${reason}] ${job.url}${detailLine}`;
+  });
+  return ["失敗詳細:", ...lines].join("\n");
 }
 
 async function hydrateDurationsForAddedVideos(

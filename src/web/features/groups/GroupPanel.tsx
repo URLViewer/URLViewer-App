@@ -25,7 +25,6 @@ export function GroupPanel() {
   const videos = useAppStore((state) => state.library.videos);
   const tabs = useAppStore((state) => state.library.tabs);
   const playback = useAppStore((state) => state.playback);
-  const activeVideoId = useAppStore((state) => state.library.tabs.activeVideoId);
   const groupSelectionMode = useAppStore((state) => state.groupSelectionMode);
   const selectedGroupIds = useAppStore((state) => state.selectedGroupIds);
 
@@ -36,7 +35,6 @@ export function GroupPanel() {
   const toggleVideoLock = useAppStore((state) => state.toggleVideoLock);
   const openVideoTab = useAppStore((state) => state.openVideoTab);
   const requestPlaybackCommand = useAppStore((state) => state.requestPlaybackCommand);
-  const addActiveVideoToFavorites = useAppStore((state) => state.addActiveVideoToFavorites);
   const setGroupSelectionMode = useAppStore((state) => state.setGroupSelectionMode);
   const toggleGroupSelection = useAppStore((state) => state.toggleGroupSelection);
   const selectAllGroups = useAppStore((state) => state.selectAllGroups);
@@ -130,50 +128,38 @@ export function GroupPanel() {
 
   return (
     <section className="panel-shell">
-      <div className="mb-3 space-y-2">
-        <div className="flex items-center gap-2">
-          <input
-            className="panel-input flex-1"
-            value={groupName}
-            maxLength={GROUP_NAME_MAX}
-            placeholder="グループ名 (1〜10文字)"
-            onChange={(event) => setGroupName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                void addGroup(groupName);
-                setGroupName("");
-              }
-            }}
-          />
-          <button
-            className="icon-btn-sm"
-            title="グループ作成"
-            onClick={() => {
+      <div className="mb-2 flex items-center gap-2">
+        <input
+          className="panel-input flex-1"
+          value={groupName}
+          maxLength={GROUP_NAME_MAX}
+          placeholder="グループ名 (1〜10文字)"
+          onChange={(event) => setGroupName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
               void addGroup(groupName);
               setGroupName("");
-            }}
-          >
-            <Icon name="plus" className="h-4 w-4" />
-          </button>
-          <button
-            className="icon-btn-sm"
-            title="再生中動画をお気に入りへ追加"
-            onClick={() => void addActiveVideoToFavorites()}
-            disabled={!activeVideoId}
-          >
-            <Icon name="star" className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="flex items-center justify-end">
-          <button
-            className={`panel-text-btn ${groupSelectionMode ? "panel-text-btn-active" : ""}`}
-            title="選択"
-            onClick={() => setGroupSelectionMode(!groupSelectionMode)}
-          >
-            選択
-          </button>
-        </div>
+            }
+          }}
+        />
+        <button
+          className="icon-btn-sm"
+          title="グループ作成"
+          onClick={() => {
+            void addGroup(groupName);
+            setGroupName("");
+          }}
+        >
+          <Icon name="plus" className="h-4 w-4" />
+        </button>
+        <button
+          className={`panel-text-btn ${groupSelectionMode ? "panel-text-btn-active" : ""}`}
+          title="選択"
+          onClick={() => setGroupSelectionMode(!groupSelectionMode)}
+        >
+          選択
+        </button>
       </div>
 
       {groupSelectionMode && (

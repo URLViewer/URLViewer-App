@@ -87,7 +87,11 @@ export type AppState = {
   removeSelectedGroups: () => Promise<void>;
   lockSelectedGroups: () => Promise<void>;
   toggleGroupLock: (groupId: string) => Promise<void>;
-  markPlaybackFailed: (videoId: string, reason: PlaybackFailureKind) => Promise<void>;
+  markPlaybackFailed: (
+    videoId: string,
+    reason: PlaybackFailureKind,
+    detail?: string,
+  ) => Promise<void>;
   renameVideo: (videoId: string, label: string) => Promise<void>;
   saveSettings: (settings: AppSettings) => Promise<void>;
   setPanel: (panel: "input" | "library" | "groups" | "plugins") => void;

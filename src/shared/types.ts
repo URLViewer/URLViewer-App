@@ -70,6 +70,43 @@ export type VideoSourceValidateInput = {
   timeoutMs: number;
 };
 
+export type VideoPlaybackTrace = {
+  capturedAt: string;
+  url: string;
+  method: string;
+  phase: "completed" | "failed";
+  statusCode?: number;
+  error?: string;
+  resourceType?: string;
+  fromCache?: boolean;
+  referrer?: string;
+  responseHeaders?: Record<string, string>;
+};
+
+export type VideoPlaybackTraceResult =
+  | {
+      status: "found";
+      trace: VideoPlaybackTrace;
+    }
+  | {
+      status: "not-found";
+    };
+
+export type NetworkHeaderOverrideRule = {
+  id: string;
+  hosts: string[];
+  headers: Record<string, string>;
+  preserveRange?: boolean;
+};
+
+export type NetworkHeaderOverridePayload = {
+  rule: NetworkHeaderOverrideRule;
+};
+
+export type NetworkHeaderOverrideReleasePayload = {
+  id: string;
+};
+
 export type VideoSourceValidateResult =
   | {
       status: "valid";
@@ -79,6 +116,7 @@ export type VideoSourceValidateResult =
   | {
       status: "invalid";
       reason: "invalid-url" | "network";
+      detail?: string;
     };
 
 export type RegisterVideoSourceInput = {
@@ -96,6 +134,7 @@ export type RegisterVideoSourceResult =
   | {
       status: "rejected";
       reason: "invalid-url" | "network";
+      detail?: string;
     };
 
 export type InstallPluginResult =

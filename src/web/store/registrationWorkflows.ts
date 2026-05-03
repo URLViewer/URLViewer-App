@@ -16,6 +16,11 @@ export type RegistrationJob = {
   label?: string;
 };
 
+export type FailedRegistrationJob = RegistrationJob & {
+  reason: "invalid-url" | "network";
+  detail?: string;
+};
+
 type ExecuteRegistrationJobsParams = {
   jobs: RegistrationJob[];
   concurrency: number;
@@ -34,7 +39,7 @@ export async function executeRegistrationJobs(
 ): Promise<{
   nextLibrary: LibraryState;
   successCount: number;
-  failedJobs: RegistrationJob[];
+  failedJobs: FailedRegistrationJob[];
 }> {
   const { jobs, concurrency, timeoutMs, initialLibrary, onJobStatus, register } = params;
 
@@ -70,8 +75,19 @@ export async function executeRegistrationJobs(
   }
 
   const failedJobs = results
-    .filter(({ result }) => result.status !== "registered")
-    .map(({ job }) => job);
+    .filter(
+      (
+        item,
+      ): item is {
+        job: RegistrationJob;
+        result: Extract<RegisterVideoSourceResult, { status: "rejected" }>;
+      } => item.result.status === "rejected",
+    )
+    .map(({ job, result }) => ({
+      ...job,
+      reason: result.reason,
+      detail: result.detail,
+    }));
 
   return {
     nextLibrary: workingLibrary,

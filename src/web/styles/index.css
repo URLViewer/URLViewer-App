@@ -1028,7 +1028,7 @@ button:disabled {
 }
 
 .app-toast {
-  @apply fixed bottom-4 right-4 z-[70] flex max-w-[min(560px,92vw)] items-start gap-2 rounded-lg border px-3 py-2 shadow-xl;
+  @apply fixed bottom-4 right-4 z-[70] grid h-16 w-[360px] max-w-[92vw] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border px-3 shadow-xl;
 }
 
 .app-toast-success {
@@ -1040,11 +1040,23 @@ button:disabled {
 }
 
 .app-toast-message {
-  @apply text-sm leading-5;
+  @apply m-0 overflow-hidden whitespace-nowrap text-ellipsis text-sm leading-5;
+}
+
+.app-toast-level-wrap {
+  @apply inline-flex w-[56px] flex-col items-center justify-center gap-0.5;
+}
+
+.app-toast-level-icon {
+  @apply inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/60 bg-white/70;
+}
+
+.app-toast-level-text {
+  @apply text-[10px] font-semibold tracking-wide;
 }
 
 .app-toast-close {
-  @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-transparent text-current opacity-80 transition-opacity duration-150;
+  @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent text-current opacity-80 transition-opacity duration-150;
 }
 
 .app-toast-close:hover {

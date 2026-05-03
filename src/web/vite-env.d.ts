@@ -4,10 +4,12 @@ import type {
   GitInstallPayload,
   InstallPluginResult,
   LibraryState,
+  NetworkHeaderOverrideRule,
   PluginListItem,
   RegisterVideoSourceInput,
   RegisterVideoSourceResult,
   ResumePayload,
+  VideoPlaybackTraceResult,
   VideoSourceValidateInput,
   VideoSourceValidateResult,
 } from "@shared/types";
@@ -25,8 +27,13 @@ declare global {
       };
       videoSource: {
         validate: (payload: VideoSourceValidateInput) => Promise<VideoSourceValidateResult>;
+        getPlaybackTrace: (url: string) => Promise<VideoPlaybackTraceResult>;
         register: (payload: RegisterVideoSourceInput) => Promise<RegisterVideoSourceResult>;
         exportAlive: () => Promise<ExportAliveUrlsResult>;
+      };
+      network: {
+        acquireHeaderOverride: (rule: NetworkHeaderOverrideRule) => Promise<{ ok: true }>;
+        releaseHeaderOverride: (id: string) => Promise<{ ok: true }>;
       };
       plugins: {
         list: () => Promise<PluginListItem[]>;

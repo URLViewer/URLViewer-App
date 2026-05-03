@@ -1,4 +1,5 @@
 import { Icon } from "@web/components/Icon";
+import { AppToast } from "@web/components/AppToast";
 import { GroupPanel } from "@web/features/groups/GroupPanel";
 import { InputPanel } from "@web/features/input/InputPanel";
 import { LibraryPanel } from "@web/features/library/LibraryPanel";
@@ -21,6 +22,7 @@ export function App() {
   const [toast, setToast] = useState<{ id: number; level: "success" | "error"; message: string } | null>(null);
   const drawerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSeenLogIdRef = useRef<number | null>(null);
+  const logCursorInitializedRef = useRef(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loaded = useAppStore((state) => state.loaded);
@@ -57,6 +59,16 @@ export function App() {
       return;
     }
     const latestLog = activityLogs[0];
+
+    if (!logCursorInitializedRef.current) {
+      logCursorInitializedRef.current = true;
+      lastSeenLogIdRef.current = latestLog?.id ?? null;
+      if (!latestLog) {
+        setUnreadLogCount(0);
+      }
+      return;
+    }
+
     if (!latestLog) {
       lastSeenLogIdRef.current = null;
       setUnreadLogCount(0);
@@ -64,15 +76,11 @@ export function App() {
     }
 
     const previousLogId = lastSeenLogIdRef.current;
-    if (previousLogId === null) {
-      lastSeenLogIdRef.current = latestLog.id;
-      return;
-    }
     if (latestLog.id === previousLogId) {
       return;
     }
 
-    if (latestLog.id > previousLogId) {
+    if (previousLogId === null || latestLog.id > previousLogId) {
       if (rightPanel !== "log") {
         setUnreadLogCount((count) => count + 1);
       }
@@ -332,19 +340,7 @@ export function App() {
         </div>
       )}
 
-      {toast && (
-        <div className={`app-toast ${toast.level === "success" ? "app-toast-success" : "app-toast-error"}`}>
-          <p className="app-toast-message">{toast.message}</p>
-          <button
-            className="app-toast-close"
-            onClick={() => setToast(null)}
-            type="button"
-            aria-label="通知を閉じる"
-          >
-            <Icon name="x" className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+      {toast && <AppToast level={toast.level} message={toast.message} onClose={() => setToast(null)} />}
     </>
   );
 }

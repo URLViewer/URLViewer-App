@@ -83,12 +83,16 @@ export function createLibraryActions(set: AppStoreSet, get: AppStoreGet): Librar
       const { library, appendLog } = get();
       const { nextLibrary, reason } = buildLibraryForAddGroup(library, name);
       if (reason === "invalid-name") {
-        set({ lastMessage: "グループ名は1〜10文字で入力してください。" });
+        const message = "グループ名は1〜10文字で入力してください。";
+        set({ lastMessage: message });
+        appendLog({ level: "error", scope: "groups", message });
         return;
       }
       if (!nextLibrary) {
         if (reason === "duplicate") {
-          set({ lastMessage: "同名グループが存在します。" });
+          const message = "同名グループが存在します。";
+          set({ lastMessage: message });
+          appendLog({ level: "error", scope: "groups", message });
         }
         return;
       }
@@ -292,23 +296,38 @@ export function createLibraryActions(set: AppStoreSet, get: AppStoreGet): Librar
       appendLog({ level: "success", scope: "library", message: "動画を一括削除しました。" });
     },
 
-    async markPlaybackFailed(videoId, reason) {
+    async markPlaybackFailed(videoId, reason, detail) {
       const { appendLog } = get();
       if (reason === "access-error") {
         await get().removeVideo(videoId);
         set({ busy: false, lastMessage: "アクセスエラーのため動画を除外しました。" });
-        appendLog({ level: "error", scope: "player", message: "アクセスエラーのため動画を除外しました。" });
+        appendLog({
+          level: "error",
+          scope: "player",
+          message: "アクセスエラーのため動画を除外しました。",
+          detail,
+        });
         return;
       }
 
       if (reason === "not-playable") {
         set({ busy: false, lastMessage: "再生不可: フォーマット非対応または動画ではありません。" });
-        appendLog({ level: "error", scope: "player", message: "再生不可エラーが発生しました。" });
+        appendLog({
+          level: "error",
+          scope: "player",
+          message: "再生不可エラーが発生しました。",
+          detail,
+        });
         return;
       }
 
       set({ busy: false, lastMessage: "再生時に不明なエラーが発生しました。" });
-      appendLog({ level: "error", scope: "player", message: "再生時に不明なエラーが発生しました。" });
+      appendLog({
+        level: "error",
+        scope: "player",
+        message: "再生時に不明なエラーが発生しました。",
+        detail,
+      });
     },
 
     async renameVideo(videoId, label) {
