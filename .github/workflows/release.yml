@@ -46,7 +46,7 @@ jobs:
             .yarn/cache
             .yarn/install-state.gz
             node_modules
-          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock', 'package.json', '.yarnrc.yml') }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
 
@@ -56,7 +56,7 @@ jobs:
           path: |
             .cache/electron
             .cache/electron-builder
-          key: ${{ runner.os }}-electron-${{ hashFiles('yarn.lock', 'package.json') }}
+          key: ${{ runner.os }}-electron-${{ hashFiles('yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-electron-
 
