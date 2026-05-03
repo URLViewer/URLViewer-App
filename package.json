@@ -73,6 +73,7 @@
   "build": {
     "appId": "local.url.viewer",
     "productName": "UrlViewer",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "copyright": "Copyright (c) 2026 URLViewer",
     "directories": {
       "output": "release"
