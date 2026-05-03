@@ -11,6 +11,8 @@ export type VideoItem = {
   id: string;
   label: string;
   sourceUrl: string;
+  locked: boolean;
+  durationSeconds?: number;
   resumeSeconds?: number;
   lastValidatedAt?: string;
   addedByPluginId?: string;
@@ -20,6 +22,8 @@ export type GroupItem = {
   id: string;
   name: string;
   videoIds: string[];
+  locked: boolean;
+  builtin?: "favorites";
 };
 
 export type TabState = {

@@ -1,4 +1,4 @@
-import { ensureActiveTab } from "@web/store/libraryHelpers";
+import { ensureActiveTab, ensureFavoritesGroup } from "@web/store/libraryHelpers";
 import type { AppState, AppStoreSet } from "@web/store/appStoreTypes";
 
 type UiActions = Pick<
@@ -10,6 +10,18 @@ type UiActions = Pick<
   | "setPanel"
   | "setPlaybackState"
   | "requestPlaybackCommand"
+  | "setLibrarySort"
+  | "toggleLibrarySortOrder"
+  | "setLibrarySelectionMode"
+  | "toggleVideoSelection"
+  | "selectAllVideos"
+  | "clearSelectedVideos"
+  | "setGroupSelectionMode"
+  | "toggleGroupSelection"
+  | "selectAllGroups"
+  | "clearSelectedGroups"
+  | "appendLog"
+  | "clearLogs"
 >;
 
 export function createUiActions(set: AppStoreSet): UiActions {
@@ -23,10 +35,11 @@ export function createUiActions(set: AppStoreSet): UiActions {
         window.m3u8Viewer.app.getVersion(),
       ]);
 
+      const normalizedLibrary = ensureFavoritesGroup(library);
       const preparedLibrary = settings.restoreTabsOnLaunch
-        ? library
+        ? normalizedLibrary
         : {
-            ...library,
+            ...normalizedLibrary,
             tabs: {
               openVideoIds: [],
               activeVideoId: null,
@@ -58,7 +71,20 @@ export function createUiActions(set: AppStoreSet): UiActions {
 
     async saveSettings(settings) {
       const nextSettings = await window.m3u8Viewer.settings.save(settings);
-      set({ settings: nextSettings, lastMessage: "設定を保存しました。" });
+      set((state) => ({
+        settings: nextSettings,
+        lastMessage: "設定を保存しました。",
+        activityLogs: [
+          {
+            id: (state.activityLogs[0]?.id ?? 0) + 1,
+            at: new Date().toISOString(),
+            level: "success" as const,
+            scope: "settings",
+            message: "設定を保存しました。",
+          },
+          ...state.activityLogs,
+        ].slice(0, 300),
+      }));
     },
 
     setPanel(panel) {
@@ -77,6 +103,87 @@ export function createUiActions(set: AppStoreSet): UiActions {
           seq: (state.playbackCommand?.seq ?? 0) + 1,
         },
       }));
+    },
+
+    setLibrarySort(key) {
+      set({ librarySortKey: key });
+    },
+
+    toggleLibrarySortOrder() {
+      set((state) => ({
+        librarySortOrder: state.librarySortOrder === "asc" ? "desc" : "asc",
+      }));
+    },
+
+    setLibrarySelectionMode(enabled) {
+      set((state) => ({
+        librarySelectionMode: enabled,
+        selectedVideoIds: enabled ? state.selectedVideoIds : [],
+      }));
+    },
+
+    toggleVideoSelection(videoId) {
+      set((state) => {
+        const selected = new Set(state.selectedVideoIds);
+        if (selected.has(videoId)) {
+          selected.delete(videoId);
+        } else {
+          selected.add(videoId);
+        }
+        return { selectedVideoIds: [...selected] };
+      });
+    },
+
+    selectAllVideos() {
+      set((state) => ({ selectedVideoIds: state.library.videos.map((video) => video.id) }));
+    },
+
+    clearSelectedVideos() {
+      set({ selectedVideoIds: [] });
+    },
+
+    setGroupSelectionMode(enabled) {
+      set((state) => ({
+        groupSelectionMode: enabled,
+        selectedGroupIds: enabled ? state.selectedGroupIds : [],
+      }));
+    },
+
+    toggleGroupSelection(groupId) {
+      set((state) => {
+        const selected = new Set(state.selectedGroupIds);
+        if (selected.has(groupId)) {
+          selected.delete(groupId);
+        } else {
+          selected.add(groupId);
+        }
+        return { selectedGroupIds: [...selected] };
+      });
+    },
+
+    selectAllGroups() {
+      set((state) => ({ selectedGroupIds: state.library.groups.map((group) => group.id) }));
+    },
+
+    clearSelectedGroups() {
+      set({ selectedGroupIds: [] });
+    },
+
+    appendLog(entry) {
+      set((state) => ({
+        activityLogs: [
+          {
+            ...entry,
+            id: (state.activityLogs[0]?.id ?? 0) + 1,
+            at: new Date().toISOString(),
+          },
+          ...state.activityLogs,
+        ].slice(0, 300),
+      }));
+    },
+
+    clearLogs() {
+      set({ activityLogs: [] });
     },
   };
 }

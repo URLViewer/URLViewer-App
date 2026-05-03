@@ -2,7 +2,12 @@ import { app } from "electron";
 import path from "node:path";
 import process from "node:process";
 import Store from "electron-store";
-import { DEFAULT_LIBRARY, DEFAULT_PLUGIN_STATE, DEFAULT_SETTINGS } from "@shared/defaults";
+import {
+  DEFAULT_LIBRARY,
+  DEFAULT_PLUGIN_STATE,
+  DEFAULT_SETTINGS,
+  FAVORITES_GROUP_ID,
+} from "@shared/defaults";
 import {
   appSettingsSchema,
   libraryStateSchema,
@@ -18,14 +23,51 @@ import type {
 } from "@shared/types";
 
 type PersistedState = {
-  dataVersion: 2;
+  dataVersion: 3;
   settings: AppSettings;
   library: LibraryState;
   plugins: PluginState;
 };
 
 const STORE_NAME = "m3u8-viewer";
-const DATA_VERSION = 2;
+const DATA_VERSION = 3;
+
+function ensureFavoritesGroup(library: LibraryState): LibraryState {
+  const explicitFavorites = library.groups.filter((group) => group.builtin === "favorites");
+  const idFavorites = library.groups.filter((group) => group.id === FAVORITES_GROUP_ID);
+  const favoriteCandidates = [...explicitFavorites, ...idFavorites];
+  const favoriteVideoIds = [...new Set(favoriteCandidates.flatMap((group) => group.videoIds))];
+
+  const nextGroups = library.groups
+    .filter((group) => group.id !== FAVORITES_GROUP_ID && group.builtin !== "favorites")
+    .map((group) => ({
+      ...group,
+      locked: Boolean(group.locked),
+    }));
+
+  nextGroups.unshift({
+    id: FAVORITES_GROUP_ID,
+    name: "お気に入り",
+    videoIds: favoriteVideoIds,
+    locked: true,
+    builtin: "favorites",
+  });
+
+  return {
+    ...library,
+    groups: nextGroups,
+  };
+}
+
+function normalizeLibrary(library: LibraryState): LibraryState {
+  return ensureFavoritesGroup({
+    ...library,
+    videos: library.videos.map((video) => ({
+      ...video,
+      locked: Boolean(video.locked),
+    })),
+  });
+}
 
 function resolveStoreCwd(): string {
   try {
@@ -58,13 +100,13 @@ export class AppStoreService {
 
   private resetIfLegacyData(): void {
     const version = this.store.get("dataVersion");
-    if (version === DATA_VERSION) {
-      return;
-    }
+    const library = this.getLibrary();
 
-    this.store.set("dataVersion", DATA_VERSION);
-    this.store.set("library", DEFAULT_LIBRARY);
-    this.store.set("plugins", DEFAULT_PLUGIN_STATE);
+    if (version !== DATA_VERSION) {
+      this.store.set("dataVersion", DATA_VERSION);
+      this.store.set("plugins", DEFAULT_PLUGIN_STATE);
+    }
+    this.store.set("library", library);
   }
 
   getSettings(): AppSettings {
@@ -81,7 +123,7 @@ export class AppStoreService {
   getLibrary(): LibraryState {
     const parsed = libraryStateSchema.safeParse(this.store.get("library"));
     if (parsed.success) {
-      return parsed.data;
+      return normalizeLibrary(parsed.data);
     }
 
     this.store.set("library", DEFAULT_LIBRARY);
@@ -89,7 +131,7 @@ export class AppStoreService {
   }
 
   saveLibrary(next: LibraryState): LibraryState {
-    const parsed = libraryStateSchema.parse(next);
+    const parsed = libraryStateSchema.parse(normalizeLibrary(next));
     this.store.set("library", parsed);
     return parsed;
   }

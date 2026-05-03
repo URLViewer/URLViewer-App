@@ -80,15 +80,43 @@ export async function installPluginFromFolder(): Promise<InstallActionResult> {
 export async function installPluginFromGit(
   payload: GitInstallPayload,
 ): Promise<InstallActionResult> {
-  const result = await window.m3u8Viewer.plugins.installFromGit(payload);
-  return {
-    changed: true,
-    message: formatInstallResultMessage(result),
-  };
+  try {
+    const result = await window.m3u8Viewer.plugins.installFromGit(payload);
+    return {
+      changed: true,
+      message: formatInstallResultMessage(result),
+    };
+  } catch (error) {
+    const reason = classifyGitInstallError(error);
+    return {
+      changed: false,
+      message: `導入失敗: ${reason}`,
+    };
+  }
 }
 
 function formatInstallResultMessage(result: InstallPluginResult): string {
   return result.status === "installed"
     ? `導入: ${result.plugin.manifest.name}`
     : `導入失敗: ${result.reason}`;
+}
+
+function classifyGitInstallError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const lower = raw.toLowerCase();
+  if (lower.includes("duplicate-plugin-id")) {
+    return "duplicate-plugin-id";
+  }
+  if (lower.includes("plugin-entry-load-failed")) {
+    return "plugin-entry-load-failed";
+  }
+  if (
+    lower.includes("clone") ||
+    lower.includes("auth") ||
+    lower.includes("repository") ||
+    lower.includes("not found")
+  ) {
+    return "git-clone-failed";
+  }
+  return "unknown";
 }

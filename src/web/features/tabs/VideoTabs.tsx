@@ -27,7 +27,7 @@ export function VideoTabs() {
               void closeVideoTab(videoId);
             }}
           >
-            <Icon name="close" className="h-3.5 w-3.5" />
+            <Icon name="x" className="h-3.5 w-3.5" />
           </span>
         </button>
       ))}

@@ -115,7 +115,7 @@ button:disabled {
 }
 
 .right-queue {
-  @apply h-full w-[316px] shrink-0 rounded-xl border border-slate-300 bg-white p-3 shadow-lg shadow-slate-300/40;
+  @apply h-full w-[360px] shrink-0 rounded-xl border border-slate-300 bg-white p-3 shadow-lg shadow-slate-300/40;
 }
 
 .queue-panel {
@@ -148,6 +148,42 @@ button:disabled {
 
 .icon-btn-sm:active {
   @apply scale-95;
+}
+
+.selection-btn-active {
+  @apply border-sky-400 bg-sky-50 text-sky-700;
+}
+
+.panel-text-btn {
+  @apply inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 transition-all duration-150;
+}
+
+.panel-text-btn:hover {
+  @apply border-teal-700 bg-slate-50 text-teal-800;
+}
+
+.panel-text-btn-active {
+  @apply border-sky-400 bg-sky-50 text-sky-700;
+}
+
+.sort-switch {
+  @apply inline-flex overflow-hidden rounded-lg border border-slate-300 bg-white;
+}
+
+.sort-switch-btn {
+  @apply h-9 px-2.5 text-xs text-slate-700 transition-colors duration-150;
+}
+
+.sort-switch-btn + .sort-switch-btn {
+  @apply border-l border-slate-300;
+}
+
+.sort-switch-btn:hover {
+  @apply bg-slate-50 text-teal-800;
+}
+
+.sort-switch-btn-active {
+  @apply bg-teal-700 text-white;
 }
 
 .icon-btn-danger {
@@ -222,6 +258,14 @@ button:disabled {
   @apply border-slate-500 bg-slate-100;
 }
 
+.item-shell-selected {
+  @apply border-sky-500 ring-2 ring-sky-200;
+}
+
+.item-shell-locked {
+  @apply bg-slate-50;
+}
+
 .video-item-main {
   @apply min-w-0;
 }
@@ -235,7 +279,7 @@ button:disabled {
 }
 
 .video-group-footer {
-  @apply col-span-3 min-w-0 border-t border-slate-200 pt-1;
+  @apply col-span-full min-w-0 border-t border-slate-200 pt-1;
 }
 
 .video-group-badge-row {
@@ -611,6 +655,42 @@ button:disabled {
   @apply bg-slate-100;
 }
 
+.queue-log-list {
+  @apply min-h-0 flex-1 overflow-auto;
+}
+
+.queue-log-row {
+  @apply rounded-md border border-slate-200 px-2 py-1.5;
+}
+
+.queue-log-head {
+  @apply flex items-center gap-2 text-[10px] uppercase tracking-wide text-slate-500;
+}
+
+.queue-log-time {
+  @apply rounded bg-slate-100 px-1.5 py-0.5;
+}
+
+.queue-log-scope {
+  @apply rounded bg-slate-100 px-1.5 py-0.5;
+}
+
+.queue-log-message {
+  @apply mt-1 text-xs text-slate-700;
+}
+
+.queue-log-detail {
+  @apply mt-0.5 truncate text-[11px] text-slate-500;
+}
+
+.queue-log-success {
+  @apply border-teal-200 bg-teal-50/35;
+}
+
+.queue-log-error {
+  @apply border-rose-200 bg-rose-50/35;
+}
+
 .tab-chip {
   @apply relative inline-flex h-9 items-center gap-1.5 rounded-t-lg rounded-b-md border border-transparent bg-slate-200 px-3 py-2 text-slate-600 transition-all duration-150;
 }
@@ -736,10 +816,18 @@ button:disabled {
 
 .viewer-time {
   @apply ml-1 text-sm font-medium text-white/95;
+  user-select: none;
 }
 
 .viewer-volume {
-  @apply h-2 w-24 cursor-pointer appearance-none rounded-full bg-white/30;
+  @apply h-2 w-24 cursor-pointer appearance-none rounded-full;
+  background: linear-gradient(
+    to right,
+    #14b8a6 0%,
+    #14b8a6 var(--volume-percent, 100%),
+    rgba(255, 255, 255, 0.3) var(--volume-percent, 100%),
+    rgba(255, 255, 255, 0.3) 100%
+  );
 }
 
 .viewer-volume::-webkit-slider-thumb {
@@ -757,6 +845,33 @@ button:disabled {
   border-radius: 9999px;
   background: #0f766e;
   border: none;
+}
+
+.viewer-seek-preview {
+  position: absolute;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: 168px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.viewer-seek-preview-image {
+  display: block;
+  width: 100%;
+  height: 94px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.35);
+}
+
+.viewer-seek-preview-fallback {
+  @apply grid h-[94px] place-items-center rounded-lg border border-white/70 bg-slate-900/75 text-[11px] text-white/85;
+}
+
+.viewer-seek-preview-time {
+  @apply mt-1 rounded-md bg-black/75 px-2 py-1 text-center text-[11px] text-white;
 }
 
 .viewer-speed-group {
@@ -913,7 +1028,7 @@ button:disabled {
   }
 
   .right-queue {
-    @apply w-[280px];
+    @apply w-[320px];
   }
 }
 
@@ -931,6 +1046,6 @@ button:disabled {
   }
 
   .right-queue {
-    @apply w-[240px];
+    @apply w-[300px];
   }
 }

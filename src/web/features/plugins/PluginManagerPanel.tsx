@@ -295,7 +295,7 @@ export function PluginManagerPanel() {
                 </div>
               </div>
               <button className="icon-btn-sm" title="閉じる" onClick={closeDetailDialog} type="button">
-                <Icon name="close" className="h-4 w-4" />
+                <Icon name="x" className="h-4 w-4" />
               </button>
             </div>
 

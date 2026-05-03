@@ -26,9 +26,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     status: "idle",
   },
   playbackCommand: null,
+  librarySortKey: "name",
+  librarySortOrder: "asc",
+  librarySelectionMode: false,
+  groupSelectionMode: false,
+  selectedVideoIds: [],
+  selectedGroupIds: [],
+  activityLogs: [],
 
   ...createUiActions(set),
   ...createRegistrationActions(set, get),
-  ...createPluginActions(set),
+  ...createPluginActions(set, get),
   ...createLibraryActions(set, get),
 }));

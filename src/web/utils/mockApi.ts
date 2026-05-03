@@ -48,6 +48,7 @@ function register(payload: RegisterVideoSourceInput): RegisterVideoSourceResult 
     id: crypto.randomUUID(),
     label: payload.label?.trim() || checked.normalizedUrl,
     sourceUrl: checked.normalizedUrl,
+    locked: false,
     lastValidatedAt: checked.validatedAt,
     addedByPluginId: payload.pluginId,
   };

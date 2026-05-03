@@ -1,6 +1,9 @@
 import type { IconType } from "react-icons";
-import { BsBookmarkFill } from "react-icons/bs";
+import { BsBookmarkFill, BsStarFill } from "react-icons/bs";
 import {
+  LuArrowDown,
+  LuArrowUp,
+  LuArrowUpAZ,
   LuBookmark,
   LuCheck,
   LuChevronDown,
@@ -8,6 +11,7 @@ import {
   LuChevronsRight,
   LuDownload,
   LuEllipsisVertical,
+  LuFileText,
   LuGauge,
   LuListVideo,
   LuMaximize,
@@ -18,12 +22,15 @@ import {
   LuRefreshCw,
   LuSearch,
   LuSettings,
+  LuStar,
   LuTrash2,
   LuUsers,
   LuVolume2,
   LuVolumeX,
+  LuX,
   LuZap
 } from "react-icons/lu";
+import { LuLock, LuLockOpen } from "react-icons/lu";
 import { MdForward10, MdForward5, MdReplay10, MdReplay5 } from "react-icons/md";
 
 type IconName =
@@ -53,7 +60,17 @@ type IconName =
   | "chevron-down"
   | "bookmark"
   | "bookmark-solid"
-  | "refresh";
+  | "refresh"
+  | "x"
+  | "lock"
+  | "unlock"
+  | "star"
+  | "star-solid"
+  | "sort"
+  | "arrow-up"
+  | "arrow-down"
+  | "queue"
+  | "log";
 
 type IconProps = {
   name: IconName;
@@ -88,6 +105,16 @@ const ICON_MAP: Record<IconName, IconType> = {
   bookmark: LuBookmark,
   "bookmark-solid": BsBookmarkFill,
   refresh: LuRefreshCw,
+  x: LuX,
+  lock: LuLock,
+  unlock: LuLockOpen,
+  star: LuStar,
+  "star-solid": BsStarFill,
+  sort: LuArrowUpAZ,
+  "arrow-up": LuArrowUp,
+  "arrow-down": LuArrowDown,
+  queue: LuSearch,
+  log: LuFileText,
 };
 
 export function Icon({ name, className = "h-5 w-5" }: IconProps) {

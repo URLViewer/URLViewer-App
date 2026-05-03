@@ -12,6 +12,19 @@ export type PlaybackState = {
   status: PlaybackStatus;
 };
 
+export type LibrarySortKey = "name" | "duration";
+export type SortOrder = "asc" | "desc";
+
+export type ActivityLogLevel = "info" | "success" | "error";
+export type ActivityLogEntry = {
+  id: number;
+  at: string;
+  level: ActivityLogLevel;
+  scope: string;
+  message: string;
+  detail?: string;
+};
+
 export type PlaybackCommand = {
   videoId: string;
   action: "toggle" | "play" | "pause";
@@ -34,6 +47,13 @@ export type AppState = {
   pendingValidations: PendingValidationItem[];
   playback: PlaybackState;
   playbackCommand: PlaybackCommand | null;
+  librarySortKey: LibrarySortKey;
+  librarySortOrder: SortOrder;
+  librarySelectionMode: boolean;
+  groupSelectionMode: boolean;
+  selectedVideoIds: string[];
+  selectedGroupIds: string[];
+  activityLogs: ActivityLogEntry[];
   loadInitialData: () => Promise<void>;
   setUrlInput: (input: string) => void;
   setPluginInput: (pluginId: string, input: string) => void;
@@ -58,6 +78,12 @@ export type AppState = {
   removeGroup: (groupId: string) => Promise<void>;
   removeVideo: (videoId: string) => Promise<void>;
   clearAllVideos: () => Promise<void>;
+  addActiveVideoToFavorites: () => Promise<void>;
+  setVideoDuration: (videoId: string, durationSeconds: number) => Promise<void>;
+  removeSelectedVideos: () => Promise<void>;
+  lockSelectedVideos: () => Promise<void>;
+  removeSelectedGroups: () => Promise<void>;
+  lockSelectedGroups: () => Promise<void>;
   markPlaybackFailed: (videoId: string, reason: PlaybackFailureKind) => Promise<void>;
   renameVideo: (videoId: string, label: string) => Promise<void>;
   saveSettings: (settings: AppSettings) => Promise<void>;
@@ -65,6 +91,18 @@ export type AppState = {
   setPlaybackState: (playback: PlaybackState) => void;
   requestPlaybackCommand: (videoId: string, action: PlaybackCommand["action"]) => void;
   addGroupWithVideo: (name: string, videoId: string) => Promise<void>;
+  setLibrarySort: (key: LibrarySortKey) => void;
+  toggleLibrarySortOrder: () => void;
+  setLibrarySelectionMode: (enabled: boolean) => void;
+  toggleVideoSelection: (videoId: string) => void;
+  selectAllVideos: () => void;
+  clearSelectedVideos: () => void;
+  setGroupSelectionMode: (enabled: boolean) => void;
+  toggleGroupSelection: (groupId: string) => void;
+  selectAllGroups: () => void;
+  clearSelectedGroups: () => void;
+  appendLog: (entry: Omit<ActivityLogEntry, "id" | "at">) => void;
+  clearLogs: () => void;
 };
 
 export type AppStoreSet = (

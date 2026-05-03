@@ -4,26 +4,40 @@ import { useAppStore } from "@web/store/appStore";
 
 const GROUP_NAME_MAX = 10;
 const FLOATING_CLOSE_MS = 140;
+const NAME_COLLATOR = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
 
 export function GroupPanel() {
   const [groupName, setGroupName] = useState("");
   const [openGroupIds, setOpenGroupIds] = useState<Record<string, boolean>>({});
   const [deleteTargetGroupId, setDeleteTargetGroupId] = useState<string | null>(null);
   const [deleteDialogClosing, setDeleteDialogClosing] = useState(false);
+  const [isSelectionDeleteDialogOpen, setSelectionDeleteDialogOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const groups = useAppStore((state) => state.library.groups);
   const videos = useAppStore((state) => state.library.videos);
+  const activeVideoId = useAppStore((state) => state.library.tabs.activeVideoId);
+  const groupSelectionMode = useAppStore((state) => state.groupSelectionMode);
+  const selectedGroupIds = useAppStore((state) => state.selectedGroupIds);
+
   const addGroup = useAppStore((state) => state.addGroup);
   const removeGroup = useAppStore((state) => state.removeGroup);
   const openVideoTab = useAppStore((state) => state.openVideoTab);
+  const addActiveVideoToFavorites = useAppStore((state) => state.addActiveVideoToFavorites);
+  const setGroupSelectionMode = useAppStore((state) => state.setGroupSelectionMode);
+  const toggleGroupSelection = useAppStore((state) => state.toggleGroupSelection);
+  const selectAllGroups = useAppStore((state) => state.selectAllGroups);
+  const clearSelectedGroups = useAppStore((state) => state.clearSelectedGroups);
+  const removeSelectedGroups = useAppStore((state) => state.removeSelectedGroups);
+  const lockSelectedGroups = useAppStore((state) => state.lockSelectedGroups);
 
   const videoMap = useMemo(() => new Map(videos.map((video) => [video.id, video])), [videos]);
   const sortedGroups = useMemo(
-    () => [...groups].sort((a, b) => a.name.localeCompare(b.name)),
+    () => [...groups].sort((a, b) => NAME_COLLATOR.compare(a.name, b.name)),
     [groups],
   );
   const deleteTargetGroup = sortedGroups.find((group) => group.id === deleteTargetGroupId) ?? null;
+  const selectedSet = useMemo(() => new Set(selectedGroupIds), [selectedGroupIds]);
 
   useEffect(() => {
     return () => {
@@ -85,7 +99,39 @@ export function GroupPanel() {
         >
           <Icon name="plus" className="h-4 w-4" />
         </button>
+        <button
+          className="icon-btn-sm"
+          title="再生中動画をお気に入りへ追加"
+          onClick={() => void addActiveVideoToFavorites()}
+          disabled={!activeVideoId}
+        >
+          <Icon name="star" className="h-4 w-4" />
+        </button>
+        <button
+          className={`panel-text-btn ${groupSelectionMode ? "panel-text-btn-active" : ""}`}
+          title="選択"
+          onClick={() => setGroupSelectionMode(!groupSelectionMode)}
+        >
+          選択
+        </button>
       </div>
+
+      {groupSelectionMode && (
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          <button className="plugin-action-btn" onClick={selectAllGroups}>全て選択</button>
+          <button className="plugin-action-btn" onClick={clearSelectedGroups}>選択クリア</button>
+          <button
+            className="plugin-action-btn plugin-action-btn-danger"
+            onClick={() => setSelectionDeleteDialogOpen(true)}
+            disabled={selectedGroupIds.length === 0}
+          >
+            削除
+          </button>
+          <button className="plugin-action-btn" onClick={() => void lockSelectedGroups()} disabled={selectedGroupIds.length === 0}>
+            <Icon name="lock" className="mr-1 h-3.5 w-3.5" />ロック
+          </button>
+        </div>
+      )}
 
       <div className="space-y-2">
         {sortedGroups.map((group) => {
@@ -93,14 +139,28 @@ export function GroupPanel() {
           const groupVideos = group.videoIds
             .map((videoId) => videoMap.get(videoId))
             .filter((video): video is NonNullable<typeof video> => Boolean(video));
+          const isSelected = selectedSet.has(group.id);
+          const isFavorites = group.builtin === "favorites";
 
           return (
-            <article key={group.id} className="group-card">
+            <article
+              key={group.id}
+              className={`group-card ${isSelected ? "item-shell-selected" : ""} ${group.locked ? "item-shell-locked" : ""}`}
+              onClick={() => {
+                if (!groupSelectionMode) {
+                  return;
+                }
+                toggleGroupSelection(group.id);
+              }}
+            >
               <div className="group-card-head">
                 <button
                   className="group-toggle-btn"
                   title={expanded ? "閉じる" : "開く"}
-                  onClick={() => toggleGroupOpen(group.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleGroupOpen(group.id);
+                  }}
                 >
                   <Icon
                     name="chevron-down"
@@ -110,14 +170,21 @@ export function GroupPanel() {
                 <span className="group-card-title" title={group.name}>
                   {group.name}
                 </span>
+                {group.locked && <Icon name="lock" className="h-3.5 w-3.5 text-slate-500" />}
                 <span className="panel-count">{group.videoIds.length}</span>
-                <button
-                  className="icon-btn-sm icon-btn-danger"
-                  title="グループ削除"
-                  onClick={() => openDeleteDialog(group.id)}
-                >
-                  <Icon name="trash" className="h-4 w-4" />
-                </button>
+                {!groupSelectionMode && (
+                  <button
+                    className="icon-btn-sm icon-btn-danger"
+                    title="グループ削除"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openDeleteDialog(group.id);
+                    }}
+                    disabled={group.locked || isFavorites}
+                  >
+                    <Icon name="trash" className="h-4 w-4" />
+                  </button>
+                )}
               </div>
 
               {expanded && (
@@ -128,7 +195,10 @@ export function GroupPanel() {
                         <button
                           key={`${group.id}-${video.id}`}
                           className="group-entry"
-                          onClick={() => void openVideoTab(video.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void openVideoTab(video.id);
+                          }}
                           title={video.id}
                         >
                           <Icon name="play" className="h-3.5 w-3.5" />
@@ -165,6 +235,29 @@ export function GroupPanel() {
                 onClick={() => {
                   void removeGroup(deleteTargetGroup.id);
                   closeDeleteDialog();
+                }}
+              >
+                削除する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSelectionDeleteDialogOpen && (
+        <div className="floating-overlay" onClick={() => setSelectionDeleteDialogOpen(false)}>
+          <div className="floating-dialog floating-enter" onClick={(event) => event.stopPropagation()}>
+            <p className="text-sm font-medium text-slate-800">選択中のグループを削除しますか？</p>
+            <p className="mt-1 text-xs text-slate-500">対象: {selectedGroupIds.length}件</p>
+            <div className="dialog-actions">
+              <button className="dialog-btn dialog-btn-neutral" onClick={() => setSelectionDeleteDialogOpen(false)}>
+                キャンセル
+              </button>
+              <button
+                className="dialog-btn dialog-btn-danger"
+                onClick={() => {
+                  setSelectionDeleteDialogOpen(false);
+                  void removeSelectedGroups();
                 }}
               >
                 削除する

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Icon } from "@web/components/Icon";
 import { resolvePlaybackPlugin } from "@web/plugins/registry";
 import type { PlaybackFailure } from "@web/plugins/types";
@@ -9,8 +9,15 @@ type PlaybackErrorState = {
   message: string;
 };
 
+type SeekPreviewState = {
+  visible: boolean;
+  x: number;
+  time: number;
+  imageDataUrl: string | null;
+};
+
 const RESUME_SAVE_INTERVAL_MS = 2000;
-const CONTROL_HIDE_DELAY_MS = 1800;
+const CONTROL_HIDE_DELAY_MS = 3000;
 const FLOATING_CLOSE_MS = 140;
 const GROUP_NAME_MIN = 1;
 const GROUP_NAME_MAX = 10;
@@ -46,6 +53,7 @@ export function VideoPlayer() {
   const plugins = useAppStore((state) => state.plugins);
   const groups = useAppStore((state) => state.library.groups);
   const addGroupWithVideo = useAppStore((state) => state.addGroupWithVideo);
+  const setVideoDuration = useAppStore((state) => state.setVideoDuration);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -59,6 +67,10 @@ export function VideoPlayer() {
   const lastHandledCommandSeqRef = useRef(0);
   const groupMenuRef = useRef<HTMLDivElement | null>(null);
   const groupCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressRef = useRef<HTMLInputElement | null>(null);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const previewRequestTokenRef = useRef(0);
 
   const [error, setError] = useState<PlaybackErrorState | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -70,11 +82,16 @@ export function VideoPlayer() {
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekValue, setSeekValue] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [isHovering, setIsHovering] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [groupInput, setGroupInput] = useState("");
   const [groupMenuVisible, setGroupMenuVisible] = useState(false);
   const [groupMenuClosing, setGroupMenuClosing] = useState(false);
+  const [seekPreview, setSeekPreview] = useState<SeekPreviewState>({
+    visible: false,
+    x: 0,
+    time: 0,
+    imageDataUrl: null,
+  });
 
   const activeVideo = useMemo(
     () => videos.find((video) => video.id === tabs.activeVideoId),
@@ -115,14 +132,14 @@ export function VideoPlayer() {
   const scheduleAutoHide = useCallback(() => {
     clearHideTimer();
 
-    if (!isPlaying || isHovering) {
+    if (!isPlaying) {
       return;
     }
 
     hideTimerRef.current = setTimeout(() => {
       setControlsVisible(false);
     }, CONTROL_HIDE_DELAY_MS);
-  }, [clearHideTimer, isHovering, isPlaying]);
+  }, [clearHideTimer, isPlaying]);
 
   const showControls = useCallback(() => {
     setControlsVisible(true);
@@ -235,6 +252,78 @@ export function VideoPlayer() {
     });
   }, [applyPendingSeek]);
 
+  const captureSeekPreviewImage = useCallback(async (time: number, x: number) => {
+    const previewVideo = previewVideoRef.current;
+    const previewCanvas = previewCanvasRef.current;
+    if (!previewVideo || !previewCanvas || !Number.isFinite(time) || time < 0) {
+      setSeekPreview((current) => ({ ...current, visible: true, x, time, imageDataUrl: null }));
+      return;
+    }
+
+    const token = ++previewRequestTokenRef.current;
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const onSeeked = () => {
+          cleanup();
+          resolve();
+        };
+        const onError = () => {
+          cleanup();
+          reject(new Error("preview-seek-failed"));
+        };
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("preview-timeout"));
+        }, 450);
+        const cleanup = () => {
+          window.clearTimeout(timeout);
+          previewVideo.removeEventListener("seeked", onSeeked);
+          previewVideo.removeEventListener("error", onError);
+        };
+        previewVideo.addEventListener("seeked", onSeeked, { once: true });
+        previewVideo.addEventListener("error", onError, { once: true });
+        previewVideo.currentTime = time;
+      });
+
+      if (token !== previewRequestTokenRef.current) {
+        return;
+      }
+
+      const width = 160;
+      const height = 90;
+      previewCanvas.width = width;
+      previewCanvas.height = height;
+      const ctx = previewCanvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("preview-context-failed");
+      }
+      ctx.drawImage(previewVideo, 0, 0, width, height);
+      const imageDataUrl = previewCanvas.toDataURL("image/jpeg", 0.7);
+      setSeekPreview({ visible: true, x, time, imageDataUrl });
+    } catch {
+      if (token !== previewRequestTokenRef.current) {
+        return;
+      }
+      setSeekPreview((current) => ({ ...current, visible: true, x, time, imageDataUrl: null }));
+    }
+  }, []);
+
+  const handleSeekHover = useCallback((clientX: number) => {
+    const progressNode = progressRef.current;
+    if (!progressNode || !Number.isFinite(duration) || duration <= 0) {
+      setSeekPreview((current) => ({ ...current, visible: false }));
+      return;
+    }
+
+    const rect = progressNode.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(rect.width, 1)));
+    const time = ratio * duration;
+    const x = ratio * rect.width;
+    setSeekPreview((current) => ({ ...current, visible: true, x, time }));
+    void captureSeekPreviewImage(time, x);
+  }, [captureSeekPreviewImage, duration]);
+
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       if (!groupMenuRef.current) {
@@ -272,8 +361,13 @@ export function VideoPlayer() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
+      const isProgressRange =
+        target instanceof HTMLInputElement &&
+        target.type === "range" &&
+        (target.classList.contains("viewer-progress") || target.classList.contains("viewer-volume"));
       if (
         target &&
+        !isProgressRange &&
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
           target.tagName === "SELECT" ||
@@ -337,6 +431,29 @@ export function VideoPlayer() {
   useEffect(() => {
     resumeAtLoadRef.current = activeVideo?.resumeSeconds ?? 0;
   }, [activeVideoId, activeVideo?.resumeSeconds]);
+
+  useEffect(() => {
+    if (!sourceUrl) {
+      previewVideoRef.current = null;
+      return;
+    }
+
+    const previewVideo = document.createElement("video");
+    previewVideo.muted = true;
+    previewVideo.preload = "auto";
+    previewVideo.crossOrigin = "anonymous";
+    previewVideo.src = sourceUrl;
+    previewVideoRef.current = previewVideo;
+
+    return () => {
+      previewVideo.pause();
+      previewVideo.removeAttribute("src");
+      previewVideo.load();
+      if (previewVideoRef.current === previewVideo) {
+        previewVideoRef.current = null;
+      }
+    };
+  }, [sourceUrl]);
 
   useEffect(() => {
     if (!playbackCommand) {
@@ -404,6 +521,9 @@ export function VideoPlayer() {
       setPlaybackRate(video.playbackRate);
       setVolume(video.volume);
       setIsMuted(video.muted);
+      if (videoIdSnapshot && video.duration > 0) {
+        void setVideoDuration(videoIdSnapshot, video.duration);
+      }
     };
 
     const onDurationChange = () => {
@@ -496,12 +616,13 @@ export function VideoPlayer() {
     plugins,
     saveResume,
     setPlaybackState,
+    setVideoDuration,
     sourceUrl,
   ]);
 
   useEffect(() => {
     scheduleAutoHide();
-  }, [isHovering, isPlaying, scheduleAutoHide]);
+  }, [isPlaying, scheduleAutoHide]);
 
   useEffect(() => {
     return () => {
@@ -512,6 +633,7 @@ export function VideoPlayer() {
       if (seekRafRef.current !== null) {
         cancelAnimationFrame(seekRafRef.current);
       }
+      previewRequestTokenRef.current += 1;
     };
   }, [clearHideTimer]);
 
@@ -553,13 +675,6 @@ export function VideoPlayer() {
       className="viewer-shell"
       tabIndex={0}
       onMouseMove={showControls}
-      onMouseEnter={() => {
-        setIsHovering(true);
-        showControls();
-      }}
-      onMouseLeave={() => {
-        setIsHovering(false);
-      }}
     >
       <div className="viewer-stage" onDoubleClick={() => void toggleFullscreen()}>
         <video ref={videoRef} className="viewer-video" onClick={togglePlay} />
@@ -651,13 +766,30 @@ export function VideoPlayer() {
         <div className={`viewer-controls-overlay ${controlsVisible || !isPlaying ? "viewer-controls-visible" : ""}`}>
           <div className="viewer-progress-wrap">
             <div className="viewer-progress-fill" style={{ width: `${progressPercent}%` }} />
+            {seekPreview.visible && (
+              <div
+                className="viewer-seek-preview"
+                style={{ left: `${seekPreview.x}px` }}
+              >
+                {seekPreview.imageDataUrl ? (
+                  <img src={seekPreview.imageDataUrl} alt="" className="viewer-seek-preview-image" />
+                ) : (
+                  <div className="viewer-seek-preview-fallback">プレビューなし</div>
+                )}
+                <div className="viewer-seek-preview-time">{formatTime(seekPreview.time)}</div>
+              </div>
+            )}
             <input
+              ref={progressRef}
               className="viewer-progress"
               type="range"
               min={0}
               max={duration || 0}
               step={0.1}
               value={isSeeking ? seekValue : currentTime}
+              onMouseMove={(event) => handleSeekHover(event.clientX)}
+              onMouseEnter={(event) => handleSeekHover(event.clientX)}
+              onMouseLeave={() => setSeekPreview((current) => ({ ...current, visible: false }))}
               onPointerDown={() => {
                 const video = videoRef.current;
                 if (!video) {
@@ -738,6 +870,7 @@ export function VideoPlayer() {
                 max={1}
                 step={0.01}
                 value={isMuted ? 0 : volume}
+                style={{ "--volume-percent": `${(isMuted ? 0 : volume) * 100}%` } as CSSProperties}
                 onChange={(event) => setVolumeValue(Number(event.target.value))}
               />
               <div className="viewer-speed-group">

@@ -77,6 +77,7 @@ export function registerIpcHandlers(store: AppStoreService, pluginManager: Plugi
       id: createVideoId(),
       label: parsed.label?.trim() || new URL(normalizedUrl).pathname.split("/").pop() || normalizedUrl,
       sourceUrl: normalizedUrl,
+      locked: false,
       lastValidatedAt: new Date().toISOString(),
       addedByPluginId: parsed.pluginId,
     };

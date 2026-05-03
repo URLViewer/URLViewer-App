@@ -4,18 +4,19 @@ import { InputPanel } from "@web/features/input/InputPanel";
 import { LibraryPanel } from "@web/features/library/LibraryPanel";
 import { VideoPlayer } from "@web/features/player/VideoPlayer";
 import { PluginManagerPanel } from "@web/features/plugins/PluginManagerPanel";
+import { ActivityLogPanel } from "@web/features/queue/ActivityLogPanel";
 import { ValidationQueuePanel } from "@web/features/queue/ValidationQueuePanel";
 import { SettingsPanel } from "@web/features/settings/SettingsPanel";
 import { VideoTabs } from "@web/features/tabs/VideoTabs";
 import { useAppStore } from "@web/store/appStore";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function App() {
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [isDrawerOpen, setDrawerOpen] = useState(true);
   const [isDrawerContentVisible, setDrawerContentVisible] = useState(true);
-  const [isQueueOpen, setQueueOpen] = useState(false);
   const [isValidateConfirmOpen, setValidateConfirmOpen] = useState(false);
+  const [rightPanel, setRightPanel] = useState<"queue" | "log" | null>(null);
   const drawerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loaded = useAppStore((state) => state.loaded);
@@ -23,10 +24,7 @@ export function App() {
   const currentPanel = useAppStore((state) => state.currentPanel);
   const appVersion = useAppStore((state) => state.appVersion);
   const busy = useAppStore((state) => state.busy);
-  const lastMessage = useAppStore((state) => state.lastMessage);
-  const tabs = useAppStore((state) => state.library.tabs);
   const videos = useAppStore((state) => state.library.videos);
-  const queue = useAppStore((state) => state.validationQueue);
   const pendingValidationsCount = useAppStore((state) => state.pendingValidations.length);
   const loadInitialData = useAppStore((state) => state.loadInitialData);
   const saveSettings = useAppStore((state) => state.saveSettings);
@@ -91,13 +89,6 @@ export function App() {
     };
   }, []);
 
-  const activeVideo = useMemo(
-    () => videos.find((video) => video.id === tabs.activeVideoId),
-    [tabs.activeVideoId, videos],
-  );
-
-  const showQueue = isQueueOpen || queue.active;
-
   const openValidateConfirm = () => {
     if (settings.validationMode === "on-register") {
       if (videos.length === 0) {
@@ -143,8 +134,19 @@ export function App() {
             <button className="icon-btn" title="生存URLをエクスポート" onClick={() => void exportAliveUrls()}>
               <Icon name="download" />
             </button>
-            <button className="icon-btn" title="キュー" onClick={() => setQueueOpen((prev) => !prev)}>
-              <Icon name="search" />
+            <button
+              className={`icon-btn ${rightPanel === "queue" ? "selection-btn-active" : ""}`}
+              title="キュー"
+              onClick={() => setRightPanel((current) => (current === "queue" ? null : "queue"))}
+            >
+              <Icon name="queue" />
+            </button>
+            <button
+              className={`icon-btn ${rightPanel === "log" ? "selection-btn-active" : ""}`}
+              title="ログ"
+              onClick={() => setRightPanel((current) => (current === "log" ? null : "log"))}
+            >
+              <Icon name="log" />
             </button>
             <button className="icon-btn" title="設定" onClick={() => setSettingsOpen(true)}>
               <Icon name="settings" />
@@ -212,15 +214,18 @@ export function App() {
             <div className="player-wrap animate-in-up">
               <VideoPlayer />
             </div>
-            <footer className="statusbar">
-              <span>{activeVideo ? activeVideo.label : busy ? "処理中..." : lastMessage || "準備完了"}</span>
-              <span>v{appVersion}</span>
-            </footer>
+            <div className="px-1 text-right text-[10px] text-slate-500">v{appVersion}</div>
           </main>
 
-          {showQueue && (
+          {rightPanel === "queue" && (
             <aside className="right-queue animate-in-right">
-              <ValidationQueuePanel />
+              <ValidationQueuePanel onClose={() => setRightPanel(null)} />
+            </aside>
+          )}
+
+          {rightPanel === "log" && (
+            <aside className="right-queue animate-in-right">
+              <ActivityLogPanel onClose={() => setRightPanel(null)} />
             </aside>
           )}
         </div>

@@ -8,7 +8,7 @@ import {
   setPluginEnabled as setPluginEnabledAction,
   updatePluginState as updatePluginStateAction,
 } from "@web/store/pluginActions";
-import type { AppState, AppStoreSet } from "@web/store/appStoreTypes";
+import type { AppState, AppStoreGet, AppStoreSet } from "@web/store/appStoreTypes";
 
 type PluginActions = Pick<
   AppState,
@@ -22,7 +22,7 @@ type PluginActions = Pick<
   | "installPluginFromGit"
 >;
 
-export function createPluginActions(set: AppStoreSet): PluginActions {
+export function createPluginActions(set: AppStoreSet, get: AppStoreGet): PluginActions {
   return {
     async refreshPlugins() {
       const { plugins, pluginPanels } = await refreshPluginStateAction();
@@ -52,28 +52,49 @@ export function createPluginActions(set: AppStoreSet): PluginActions {
     async installPluginFromZip() {
       const result = await installPluginFromZipAction();
       if (!result.changed) {
+        if (result.message) {
+          set({ lastMessage: result.message });
+          get().appendLog({ level: "error", scope: "plugins", message: result.message });
+        }
         return;
       }
       const { plugins, pluginPanels } = await refreshPluginStateAction();
       set({ plugins, pluginPanels, lastMessage: result.message ?? "" });
+      if (result.message) {
+        get().appendLog({ level: "success", scope: "plugins", message: result.message });
+      }
     },
 
     async installPluginFromFolder() {
       const result = await installPluginFromFolderAction();
       if (!result.changed) {
+        if (result.message) {
+          set({ lastMessage: result.message });
+          get().appendLog({ level: "error", scope: "plugins", message: result.message });
+        }
         return;
       }
       const { plugins, pluginPanels } = await refreshPluginStateAction();
       set({ plugins, pluginPanels, lastMessage: result.message ?? "" });
+      if (result.message) {
+        get().appendLog({ level: "success", scope: "plugins", message: result.message });
+      }
     },
 
     async installPluginFromGit(url, branch, token) {
       const result = await installPluginFromGitAction({ url, branch, token });
       if (!result.changed) {
+        if (result.message) {
+          set({ lastMessage: result.message });
+          get().appendLog({ level: "error", scope: "plugins", message: result.message });
+        }
         return;
       }
       const { plugins, pluginPanels } = await refreshPluginStateAction();
       set({ plugins, pluginPanels, lastMessage: result.message ?? "" });
+      if (result.message) {
+        get().appendLog({ level: "success", scope: "plugins", message: result.message });
+      }
     },
   };
 }

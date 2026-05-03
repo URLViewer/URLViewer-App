@@ -1,7 +1,11 @@
 import { Icon } from "@web/components/Icon";
 import { useAppStore } from "@web/store/appStore";
 
-export function ValidationQueuePanel() {
+type ValidationQueuePanelProps = {
+  onClose: () => void;
+};
+
+export function ValidationQueuePanel({ onClose }: ValidationQueuePanelProps) {
   const queue = useAppStore((state) => state.validationQueue);
 
   return (
@@ -11,9 +15,9 @@ export function ValidationQueuePanel() {
           <Icon name="bolt" className="h-4 w-4 text-teal-700" />
           <span className="panel-title text-slate-800">キュー</span>
         </div>
-        <span className="panel-count">
-          {queue.done}/{queue.total}
-        </span>
+        <button className="icon-btn-sm" title="閉じる" onClick={onClose}>
+          <Icon name="x" className="h-4 w-4" />
+        </button>
       </div>
 
       <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">

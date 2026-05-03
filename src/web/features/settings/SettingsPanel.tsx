@@ -19,7 +19,7 @@ export function SettingsPanel({ open, settings, onClose, onSave }: SettingsPanel
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold tracking-wide text-slate-800">設定</h2>
           <button className="icon-btn-sm" onClick={onClose} title="閉じる">
-            <Icon name="close" className="h-4 w-4" />
+            <Icon name="x" className="h-4 w-4" />
           </button>
         </div>
 

@@ -18,6 +18,8 @@ export const videoItemSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
   sourceUrl: urlSchema,
+  locked: z.boolean().default(false),
+  durationSeconds: z.number().min(0).optional(),
   resumeSeconds: z.number().min(0).optional(),
   lastValidatedAt: z.string().datetime().optional(),
   addedByPluginId: z.string().min(1).optional(),
@@ -27,6 +29,8 @@ export const groupItemSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(10),
   videoIds: z.array(z.string().min(1)),
+  locked: z.boolean().default(false),
+  builtin: z.literal("favorites").optional(),
 });
 
 export const libraryStateSchema = z.object({
