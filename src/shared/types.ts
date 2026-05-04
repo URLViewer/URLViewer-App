@@ -6,6 +6,8 @@ import type {
 } from "@m3u8viewer/plugin-sdk";
 
 export type ValidationMode = "on-register" | "manual";
+export type LibrarySortKey = "added" | "name" | "duration";
+export type SortOrder = "asc" | "desc";
 
 export type VideoItem = {
   id: string;
@@ -33,6 +35,8 @@ export type TabState = {
 
 export type AppSettings = {
   restoreTabsOnLaunch: boolean;
+  restorePlaybackOnLaunch: boolean;
+  restoreLibrarySortOnLaunch: boolean;
   validationMode: ValidationMode;
   validationConcurrency: number;
   validationTimeoutMs: number;
@@ -42,6 +46,11 @@ export type LibraryState = {
   videos: VideoItem[];
   groups: GroupItem[];
   tabs: TabState;
+};
+
+export type UiState = {
+  librarySortKey: LibrarySortKey;
+  librarySortOrder: SortOrder;
 };
 
 export type { PluginCapability, PluginDescription, PluginManifestV1, PluginPanelSpec };

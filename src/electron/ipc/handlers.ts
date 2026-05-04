@@ -4,6 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import {
   appSettingsSchema,
+  uiStateSchema,
   networkHeaderOverridePayloadSchema,
   networkHeaderOverrideReleasePayloadSchema,
   playbackTraceLookupSchema,
@@ -45,6 +46,13 @@ export function registerIpcHandlers(store: AppStoreService, pluginManager: Plugi
   ipcMain.handle("settings:save", (_event, payload) => {
     const parsed = appSettingsSchema.parse(payload);
     return store.saveSettings(parsed);
+  });
+
+  ipcMain.handle("ui:get", () => store.getUiState());
+
+  ipcMain.handle("ui:save", (_event, payload) => {
+    const parsed = uiStateSchema.parse(payload);
+    return store.saveUiState(parsed);
   });
 
   ipcMain.handle("library:get", () => store.getLibrary());
@@ -272,6 +280,8 @@ export function registerIpcHandlers(store: AppStoreService, pluginManager: Plugi
 export function cleanupIpcHandlers(): void {
   ipcMain.removeHandler("settings:get");
   ipcMain.removeHandler("settings:save");
+  ipcMain.removeHandler("ui:get");
+  ipcMain.removeHandler("ui:save");
   ipcMain.removeHandler("library:get");
   ipcMain.removeHandler("library:save");
   ipcMain.removeHandler("videoSource:validate");

@@ -6,6 +6,7 @@ import {
   DEFAULT_LIBRARY,
   DEFAULT_PLUGIN_STATE,
   DEFAULT_SETTINGS,
+  DEFAULT_UI_STATE,
   FAVORITES_GROUP_ID,
 } from "@shared/defaults";
 import {
@@ -13,24 +14,27 @@ import {
   libraryStateSchema,
   pluginStateSchema,
   resumePayloadSchema,
+  uiStateSchema,
 } from "@shared/schemas";
 import type {
   AppSettings,
   LibraryState,
   PluginState,
   ResumePayload,
+  UiState,
   VideoItem,
 } from "@shared/types";
 
 type PersistedState = {
-  dataVersion: 3;
+  dataVersion: 4;
   settings: AppSettings;
   library: LibraryState;
   plugins: PluginState;
+  ui: UiState;
 };
 
 const STORE_NAME = "m3u8-viewer";
-const DATA_VERSION = 3;
+const DATA_VERSION = 4;
 
 function ensureFavoritesGroup(library: LibraryState): LibraryState {
   const explicitFavorites = library.groups.filter((group) => group.builtin === "favorites");
@@ -69,6 +73,30 @@ function normalizeLibrary(library: LibraryState): LibraryState {
   });
 }
 
+function stripResumeFromLibrary(library: LibraryState): LibraryState {
+  return {
+    ...library,
+    videos: library.videos.map((video) => {
+      const { resumeSeconds, ...rest } = video;
+      void resumeSeconds;
+      return rest;
+    }),
+  };
+}
+
+function sanitizeLibraryForPersistence(library: LibraryState, settings: AppSettings): LibraryState {
+  const withTabs = settings.restoreTabsOnLaunch
+    ? library
+    : {
+        ...library,
+        tabs: {
+          openVideoIds: [],
+          activeVideoId: null,
+        },
+      };
+  return settings.restorePlaybackOnLaunch ? withTabs : stripResumeFromLibrary(withTabs);
+}
+
 function resolveStoreCwd(): string {
   try {
     const userDataPath = app?.getPath?.("userData");
@@ -91,6 +119,7 @@ export class AppStoreService {
       settings: DEFAULT_SETTINGS,
       library: DEFAULT_LIBRARY,
       plugins: DEFAULT_PLUGIN_STATE,
+      ui: DEFAULT_UI_STATE,
     },
   });
 
@@ -100,13 +129,15 @@ export class AppStoreService {
 
   private resetIfLegacyData(): void {
     const version = this.store.get("dataVersion");
+    const settings = this.getSettings();
     const library = this.getLibrary();
 
     if (version !== DATA_VERSION) {
       this.store.set("dataVersion", DATA_VERSION);
       this.store.set("plugins", DEFAULT_PLUGIN_STATE);
+      this.store.set("ui", DEFAULT_UI_STATE);
     }
-    this.store.set("library", library);
+    this.store.set("library", sanitizeLibraryForPersistence(library, settings));
   }
 
   getSettings(): AppSettings {
@@ -117,6 +148,10 @@ export class AppStoreService {
   saveSettings(next: AppSettings): AppSettings {
     const parsed = appSettingsSchema.parse(next);
     this.store.set("settings", parsed);
+    this.store.set("library", sanitizeLibraryForPersistence(this.getLibrary(), parsed));
+    if (!parsed.restoreLibrarySortOnLaunch) {
+      this.store.set("ui", DEFAULT_UI_STATE);
+    }
     return parsed;
   }
 
@@ -131,7 +166,10 @@ export class AppStoreService {
   }
 
   saveLibrary(next: LibraryState): LibraryState {
-    const parsed = libraryStateSchema.parse(normalizeLibrary(next));
+    const settings = this.getSettings();
+    const parsed = libraryStateSchema.parse(
+      sanitizeLibraryForPersistence(normalizeLibrary(next), settings),
+    );
     this.store.set("library", parsed);
     return parsed;
   }
@@ -153,6 +191,10 @@ export class AppStoreService {
   }
 
   saveResume(payload: ResumePayload): number {
+    const settings = this.getSettings();
+    if (!settings.restorePlaybackOnLaunch) {
+      return payload.seconds;
+    }
     const parsed = resumePayloadSchema.parse(payload);
     const library = this.getLibrary();
     const updatedVideos: VideoItem[] = library.videos.map((video) =>
@@ -164,8 +206,28 @@ export class AppStoreService {
   }
 
   getResume(videoId: string): number | null {
+    const settings = this.getSettings();
+    if (!settings.restorePlaybackOnLaunch) {
+      return null;
+    }
     const library = this.getLibrary();
     const found = library.videos.find((video) => video.id === videoId);
     return found?.resumeSeconds ?? null;
+  }
+
+  getUiState(): UiState {
+    const parsed = uiStateSchema.safeParse(this.store.get("ui"));
+    return parsed.success ? parsed.data : DEFAULT_UI_STATE;
+  }
+
+  saveUiState(next: UiState): UiState {
+    const settings = this.getSettings();
+    if (!settings.restoreLibrarySortOnLaunch) {
+      this.store.set("ui", DEFAULT_UI_STATE);
+      return DEFAULT_UI_STATE;
+    }
+    const parsed = uiStateSchema.parse(next);
+    this.store.set("ui", parsed);
+    return parsed;
   }
 }

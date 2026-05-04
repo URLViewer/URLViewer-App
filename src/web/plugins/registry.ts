@@ -47,6 +47,8 @@ export function resolvePlaybackPlugin(
         return playback;
       }
     }
+    // Twitter URL は専用プラグインが無効なら再生を許可しない。
+    return null;
   }
 
   for (const plugin of ordered) {

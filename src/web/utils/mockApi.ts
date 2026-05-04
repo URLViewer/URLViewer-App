@@ -1,4 +1,4 @@
-import { DEFAULT_LIBRARY, DEFAULT_SETTINGS } from "@shared/defaults";
+import { DEFAULT_LIBRARY, DEFAULT_SETTINGS, DEFAULT_UI_STATE } from "@shared/defaults";
 import { BUILTIN_PLUGIN_SEEDS } from "@shared/pluginCatalog";
 import type {
   AppSettings,
@@ -12,10 +12,12 @@ import type {
   ResumePayload,
   VideoSourceValidateInput,
   VideoSourceValidateResult,
+  UiState,
 } from "@shared/types";
 
 let settingsState: AppSettings = { ...DEFAULT_SETTINGS };
 let libraryState: LibraryState = JSON.parse(JSON.stringify(DEFAULT_LIBRARY)) as LibraryState;
+let uiState: UiState = { ...DEFAULT_UI_STATE };
 let pluginsState: PluginListItem[] = JSON.parse(
   JSON.stringify(BUILTIN_PLUGIN_SEEDS),
 ) as PluginListItem[];
@@ -74,6 +76,13 @@ export function createBrowserMockApi(): Window["m3u8Viewer"] {
       save: async (next) => {
         settingsState = next;
         return settingsState;
+      },
+    },
+    ui: {
+      get: async () => uiState,
+      save: async (next) => {
+        uiState = next;
+        return uiState;
       },
     },
     library: {

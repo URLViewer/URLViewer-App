@@ -115,26 +115,26 @@ export function LibraryPanel() {
             <button
               className={`library-sort-chip ${librarySortKey === "added" ? "library-sort-chip-active" : ""}`}
               title="追加順で並び替え"
-              onClick={() => setLibrarySort("added")}
+              onClick={() => void setLibrarySort("added")}
             >
               追加順
             </button>
             <button
               className={`library-sort-chip ${librarySortKey === "name" ? "library-sort-chip-active" : ""}`}
               title="動画名で並び替え"
-              onClick={() => setLibrarySort("name")}
+              onClick={() => void setLibrarySort("name")}
             >
               名前
             </button>
             <button
               className={`library-sort-chip ${librarySortKey === "duration" ? "library-sort-chip-active" : ""}`}
               title="動画長さで並び替え"
-              onClick={() => setLibrarySort("duration")}
+              onClick={() => void setLibrarySort("duration")}
             >
               長さ
             </button>
           </div>
-          <button className="library-sort-order-btn" title="昇順/降順" onClick={toggleLibrarySortOrder}>
+          <button className="library-sort-order-btn" title="昇順/降順" onClick={() => void toggleLibrarySortOrder()}>
             <Icon name={librarySortOrder === "asc" ? "arrow-up" : "arrow-down"} className="h-4 w-4" />
           </button>
         </div>

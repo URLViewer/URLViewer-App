@@ -10,6 +10,7 @@ import type {
   RegisterVideoSourceInput,
   RegisterVideoSourceResult,
   ResumePayload,
+  UiState,
   VideoPlaybackTraceResult,
   VideoSourceValidateInput,
   VideoSourceValidateResult,
@@ -20,6 +21,10 @@ const api = {
     get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
     save: (settings: AppSettings): Promise<AppSettings> =>
       ipcRenderer.invoke("settings:save", settings),
+  },
+  ui: {
+    get: (): Promise<UiState> => ipcRenderer.invoke("ui:get"),
+    save: (ui: UiState): Promise<UiState> => ipcRenderer.invoke("ui:save", ui),
   },
   library: {
     get: (): Promise<LibraryState> => ipcRenderer.invoke("library:get"),

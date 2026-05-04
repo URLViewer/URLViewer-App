@@ -1,5 +1,4 @@
-import type { VideoItem } from "@shared/types";
-import type { LibrarySortKey, SortOrder } from "@web/store/appStoreTypes";
+import type { LibrarySortKey, SortOrder, VideoItem } from "@shared/types";
 
 const NAME_COLLATOR = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
 

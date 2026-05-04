@@ -22,10 +22,11 @@ export const twitterVideoAccessPlaybackPlugin: RendererPluginDefinition = {
       canHandle: (sourceUrl) => isTwitterVideoUrl(sourceUrl),
       mount: ({ video, sourceUrl, onFatalError }) => {
         let disposed = false;
+        let acquired = false;
         let released = false;
 
         const releasePolicy = () => {
-          if (released) {
+          if (released || !acquired) {
             return;
           }
           released = true;
@@ -49,6 +50,7 @@ export const twitterVideoAccessPlaybackPlugin: RendererPluginDefinition = {
               },
               preserveRange: false,
             });
+            acquired = true;
           } catch (error) {
             void error;
             onFatalError({ kind: "access-error" });

@@ -4,9 +4,16 @@ const urlSchema = z.string().url();
 
 export const appSettingsSchema = z.object({
   restoreTabsOnLaunch: z.boolean(),
+  restorePlaybackOnLaunch: z.boolean(),
+  restoreLibrarySortOnLaunch: z.boolean(),
   validationMode: z.enum(["on-register", "manual"]),
   validationConcurrency: z.number().int().min(1).max(8),
   validationTimeoutMs: z.number().int().min(1000).max(20000),
+});
+
+export const uiStateSchema = z.object({
+  librarySortKey: z.enum(["added", "name", "duration"]),
+  librarySortOrder: z.enum(["asc", "desc"]),
 });
 
 export const tabStateSchema = z.object({

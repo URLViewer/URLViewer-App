@@ -1,5 +1,7 @@
 import { ensureActiveTab, ensureFavoritesGroup } from "@web/store/libraryHelpers";
-import type { AppState, AppStoreSet } from "@web/store/appStoreTypes";
+import { DEFAULT_UI_STATE } from "@shared/defaults";
+import type { AppState, AppStoreGet, AppStoreSet } from "@web/store/appStoreTypes";
+import type { LibraryState } from "@shared/types";
 
 type UiActions = Pick<
   AppState,
@@ -24,19 +26,31 @@ type UiActions = Pick<
   | "clearLogs"
 >;
 
-export function createUiActions(set: AppStoreSet): UiActions {
+function stripResumeFromLibrary(library: LibraryState): LibraryState {
+  return {
+    ...library,
+    videos: library.videos.map((video) => {
+      const { resumeSeconds, ...rest } = video;
+      void resumeSeconds;
+      return rest;
+    }),
+  };
+}
+
+export function createUiActions(set: AppStoreSet, get: AppStoreGet): UiActions {
   return {
     async loadInitialData() {
-      const [settings, library, plugins, pluginPanels, appVersion] = await Promise.all([
+      const [settings, library, ui, plugins, pluginPanels, appVersion] = await Promise.all([
         window.m3u8Viewer.settings.get(),
         window.m3u8Viewer.library.get(),
+        window.m3u8Viewer.ui.get(),
         window.m3u8Viewer.plugins.list(),
         window.m3u8Viewer.plugins.listPanels(),
         window.m3u8Viewer.app.getVersion(),
       ]);
 
       const normalizedLibrary = ensureFavoritesGroup(library);
-      const preparedLibrary = settings.restoreTabsOnLaunch
+      const tabsPreparedLibrary = settings.restoreTabsOnLaunch
         ? normalizedLibrary
         : {
             ...normalizedLibrary,
@@ -45,11 +59,16 @@ export function createUiActions(set: AppStoreSet): UiActions {
               activeVideoId: null,
             },
           };
+      const preparedLibrary = settings.restorePlaybackOnLaunch
+        ? tabsPreparedLibrary
+        : stripResumeFromLibrary(tabsPreparedLibrary);
 
       set({
         loaded: true,
         settings,
         library: ensureActiveTab(preparedLibrary),
+        librarySortKey: settings.restoreLibrarySortOnLaunch ? ui.librarySortKey : DEFAULT_UI_STATE.librarySortKey,
+        librarySortOrder: settings.restoreLibrarySortOnLaunch ? ui.librarySortOrder : DEFAULT_UI_STATE.librarySortOrder,
         plugins,
         pluginPanels,
         appVersion,
@@ -71,6 +90,12 @@ export function createUiActions(set: AppStoreSet): UiActions {
 
     async saveSettings(settings) {
       const nextSettings = await window.m3u8Viewer.settings.save(settings);
+      if (!nextSettings.restoreLibrarySortOnLaunch) {
+        set({
+          librarySortKey: DEFAULT_UI_STATE.librarySortKey,
+          librarySortOrder: DEFAULT_UI_STATE.librarySortOrder,
+        });
+      }
       set((state) => ({
         settings: nextSettings,
         lastMessage: "設定を保存しました。",
@@ -105,14 +130,29 @@ export function createUiActions(set: AppStoreSet): UiActions {
       }));
     },
 
-    setLibrarySort(key) {
+    async setLibrarySort(key) {
       set({ librarySortKey: key });
+      const { settings, librarySortOrder } = get();
+      if (!settings.restoreLibrarySortOnLaunch) {
+        return;
+      }
+      await window.m3u8Viewer.ui.save({
+        librarySortKey: key,
+        librarySortOrder,
+      });
     },
 
-    toggleLibrarySortOrder() {
-      set((state) => ({
-        librarySortOrder: state.librarySortOrder === "asc" ? "desc" : "asc",
-      }));
+    async toggleLibrarySortOrder() {
+      const nextOrder = get().librarySortOrder === "asc" ? "desc" : "asc";
+      set({ librarySortOrder: nextOrder });
+      const { settings, librarySortKey } = get();
+      if (!settings.restoreLibrarySortOnLaunch) {
+        return;
+      }
+      await window.m3u8Viewer.ui.save({
+        librarySortKey,
+        librarySortOrder: nextOrder,
+      });
     },
 
     setLibrarySelectionMode(enabled) {

@@ -1,7 +1,9 @@
-import { AppSettings, GroupItem, LibraryState, PluginState } from "./types";
+import { AppSettings, GroupItem, LibraryState, PluginState, UiState } from "./types";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   restoreTabsOnLaunch: true,
+  restorePlaybackOnLaunch: true,
+  restoreLibrarySortOnLaunch: true,
   validationMode: "on-register",
   validationConcurrency: 2,
   validationTimeoutMs: 5000,
@@ -29,4 +31,9 @@ export const DEFAULT_LIBRARY: LibraryState = {
 export const DEFAULT_PLUGIN_STATE: PluginState = {
   schemaVersion: 1,
   items: [],
+};
+
+export const DEFAULT_UI_STATE: UiState = {
+  librarySortKey: "name",
+  librarySortOrder: "asc",
 };

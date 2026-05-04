@@ -34,7 +34,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedGroupIds: [],
   activityLogs: [],
 
-  ...createUiActions(set),
+  ...createUiActions(set, get),
   ...createRegistrationActions(set, get),
   ...createPluginActions(set, get),
   ...createLibraryActions(set, get),

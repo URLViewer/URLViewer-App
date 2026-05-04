@@ -24,19 +24,48 @@ export function SettingsPanel({ open, settings, onClose, onSave }: SettingsPanel
         </div>
 
         <div className="space-y-4">
-          <label className="settings-row">
-            <span>起動時にタブを復元</span>
-            <input
-              type="checkbox"
-              checked={settings.restoreTabsOnLaunch}
-              onChange={(event) =>
-                void onSave({
-                  ...settings,
-                  restoreTabsOnLaunch: event.target.checked,
-                })
-              }
-            />
-          </label>
+          <div className="settings-col gap-2 rounded-xl border border-slate-200 p-3">
+            <span className="text-sm font-semibold text-slate-700">起動時に復元するもの</span>
+            <label className="settings-row">
+              <span>タブ</span>
+              <input
+                type="checkbox"
+                checked={settings.restoreTabsOnLaunch}
+                onChange={(event) =>
+                  void onSave({
+                    ...settings,
+                    restoreTabsOnLaunch: event.target.checked,
+                  })
+                }
+              />
+            </label>
+            <label className="settings-row">
+              <span>再生していた動画</span>
+              <input
+                type="checkbox"
+                checked={settings.restorePlaybackOnLaunch}
+                onChange={(event) =>
+                  void onSave({
+                    ...settings,
+                    restorePlaybackOnLaunch: event.target.checked,
+                  })
+                }
+              />
+            </label>
+            <label className="settings-row">
+              <span>ライブラリの並び替え</span>
+              <input
+                type="checkbox"
+                checked={settings.restoreLibrarySortOnLaunch}
+                onChange={(event) =>
+                  void onSave({
+                    ...settings,
+                    restoreLibrarySortOnLaunch: event.target.checked,
+                  })
+                }
+              />
+            </label>
+          </div>
 
           <label className="settings-col">
             <span>検証タイミング</span>

@@ -1,4 +1,10 @@
-import type { AppSettings, LibraryState, PluginListItem } from "@shared/types";
+import type {
+  AppSettings,
+  LibrarySortKey,
+  LibraryState,
+  PluginListItem,
+  SortOrder,
+} from "@shared/types";
 import type { PlaybackFailureKind } from "@web/plugins/types";
 import type {
   PendingValidationItem,
@@ -11,9 +17,6 @@ export type PlaybackState = {
   videoId: string | null;
   status: PlaybackStatus;
 };
-
-export type LibrarySortKey = "added" | "name" | "duration";
-export type SortOrder = "asc" | "desc";
 
 export type ActivityLogLevel = "info" | "success" | "error";
 export type ActivityLogEntry = {
@@ -98,8 +101,8 @@ export type AppState = {
   setPlaybackState: (playback: PlaybackState) => void;
   requestPlaybackCommand: (videoId: string, action: PlaybackCommand["action"]) => void;
   addGroupWithVideo: (name: string, videoId: string) => Promise<void>;
-  setLibrarySort: (key: LibrarySortKey) => void;
-  toggleLibrarySortOrder: () => void;
+  setLibrarySort: (key: LibrarySortKey) => Promise<void>;
+  toggleLibrarySortOrder: () => Promise<void>;
   setLibrarySelectionMode: (enabled: boolean) => void;
   toggleVideoSelection: (videoId: string) => void;
   selectAllVideos: () => void;

@@ -9,6 +9,7 @@ import type {
   RegisterVideoSourceInput,
   RegisterVideoSourceResult,
   ResumePayload,
+  UiState,
   VideoPlaybackTraceResult,
   VideoSourceValidateInput,
   VideoSourceValidateResult,
@@ -20,6 +21,10 @@ declare global {
       settings: {
         get: () => Promise<AppSettings>;
         save: (settings: AppSettings) => Promise<AppSettings>;
+      };
+      ui: {
+        get: () => Promise<UiState>;
+        save: (ui: UiState) => Promise<UiState>;
       };
       library: {
         get: () => Promise<LibraryState>;
