@@ -90,12 +90,6 @@ export function createUiActions(set: AppStoreSet, get: AppStoreGet): UiActions {
 
     async saveSettings(settings) {
       const nextSettings = await window.m3u8Viewer.settings.save(settings);
-      if (!nextSettings.restoreLibrarySortOnLaunch) {
-        set({
-          librarySortKey: DEFAULT_UI_STATE.librarySortKey,
-          librarySortOrder: DEFAULT_UI_STATE.librarySortOrder,
-        });
-      }
       set((state) => ({
         settings: nextSettings,
         lastMessage: "設定を保存しました。",
