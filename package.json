@@ -1,7 +1,9 @@
 {
   "name": "url-viewer",
   "private": true,
-  "version": "0.0.3",
+  "version": "0.0.4",
+  "license": "MIT",
+  "homepage": "https://github.com/URLViewer/UrlViewer-App",
   "description": "URLを動画ソースとして登録・管理する Electron アプリ",
   "author": "URLViewer",
   "packageManager": "yarn@4.13.0",
