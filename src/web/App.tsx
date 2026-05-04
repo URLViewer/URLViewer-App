@@ -38,6 +38,7 @@ export function App() {
   const setPanel = useAppStore((state) => state.setPanel);
   const validateAllPending = useAppStore((state) => state.validateAllPending);
   const exportAliveUrls = useAppStore((state) => state.exportAliveUrls);
+  const appendLog = useAppStore((state) => state.appendLog);
 
   useEffect(() => {
     void loadInitialData();
@@ -159,6 +160,20 @@ export function App() {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.m3u8Viewer.app.onUpdaterEvent((event) => {
+      appendLog({
+        level: event.level,
+        scope: "updater",
+        message: `[${event.type}] ${event.message}`,
+        detail: event.detail,
+      });
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [appendLog]);
 
   const openValidateConfirm = () => {
     if (settings.validationMode === "on-register") {

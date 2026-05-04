@@ -10,6 +10,7 @@ import type {
   RegisterVideoSourceResult,
   ResumePayload,
   UiState,
+  UpdaterTelemetryEvent,
   VideoPlaybackTraceResult,
   VideoSourceValidateInput,
   VideoSourceValidateResult,
@@ -60,6 +61,7 @@ declare global {
       };
       app: {
         getVersion: () => Promise<string>;
+        onUpdaterEvent: (callback: (event: UpdaterTelemetryEvent) => void) => () => void;
         onCloseActiveTabShortcut: (callback: () => void) => () => void;
       };
       fs: {

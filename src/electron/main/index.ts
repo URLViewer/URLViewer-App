@@ -10,13 +10,23 @@ import {
 } from "@electron/services/videoNetworkTrace";
 import { AppStoreService } from "@electron/store/appStore";
 import { createUpdateProvider } from "@electron/updater/provider";
+import type { UpdaterTelemetryEvent } from "@shared/types";
 
 const currentDir = __dirname;
 const store = new AppStoreService();
 const pluginManager = new PluginManager(store);
-const updateProvider = createUpdateProvider();
+const updateProvider = createUpdateProvider((event) => broadcastUpdaterEvent(event));
 let headerOverrideHookInstalled = false;
 let twitterTraceHookInstalled = false;
+
+function broadcastUpdaterEvent(event: UpdaterTelemetryEvent): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed()) {
+      continue;
+    }
+    window.webContents.send("updater:event", event);
+  }
+}
 
 function resolveWindowIconPath(): string | undefined {
   const candidates = [
@@ -87,6 +97,12 @@ async function createWindow(): Promise<void> {
 
   const updateStatus = await updateProvider.checkForUpdates();
   console.info(`[updater] enabled=${updateStatus.enabled} message=${updateStatus.message}`);
+  broadcastUpdaterEvent({
+    at: new Date().toISOString(),
+    level: updateStatus.enabled ? "info" : "error",
+    type: "status",
+    message: updateStatus.message,
+  });
 }
 
 function installHeaderOverrideHook(session: Session): void {

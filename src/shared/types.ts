@@ -8,6 +8,16 @@ import type {
 export type ValidationMode = "on-register" | "manual";
 export type LibrarySortKey = "added" | "name" | "duration";
 export type SortOrder = "asc" | "desc";
+export type UpdaterEventLevel = "info" | "success" | "error";
+export type UpdaterEventType =
+  | "checking"
+  | "available"
+  | "not-available"
+  | "download-progress"
+  | "downloaded"
+  | "check-failed"
+  | "runtime-error"
+  | "status";
 
 export type VideoItem = {
   id: string;
@@ -51,6 +61,14 @@ export type LibraryState = {
 export type UiState = {
   librarySortKey: LibrarySortKey;
   librarySortOrder: SortOrder;
+};
+
+export type UpdaterTelemetryEvent = {
+  at: string;
+  level: UpdaterEventLevel;
+  type: UpdaterEventType;
+  message: string;
+  detail?: string;
 };
 
 export type { PluginCapability, PluginDescription, PluginManifestV1, PluginPanelSpec };

@@ -11,6 +11,7 @@ import type {
   RegisterVideoSourceResult,
   ResumePayload,
   UiState,
+  UpdaterTelemetryEvent,
   VideoPlaybackTraceResult,
   VideoSourceValidateInput,
   VideoSourceValidateResult,
@@ -77,6 +78,13 @@ const api = {
   },
   app: {
     getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
+    onUpdaterEvent: (callback: (event: UpdaterTelemetryEvent) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: UpdaterTelemetryEvent) => callback(payload);
+      ipcRenderer.on("updater:event", handler);
+      return () => {
+        ipcRenderer.removeListener("updater:event", handler);
+      };
+    },
     onCloseActiveTabShortcut: (callback: () => void): (() => void) => {
       const handler = () => callback();
       ipcRenderer.on("app:close-active-tab", handler);

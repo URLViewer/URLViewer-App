@@ -153,6 +153,7 @@ export function createBrowserMockApi(): Window["m3u8Viewer"] {
     },
     app: {
       getVersion: async () => "0.1.0-browser",
+      onUpdaterEvent: () => () => undefined,
       onCloseActiveTabShortcut: () => () => undefined,
     },
     fs: {
